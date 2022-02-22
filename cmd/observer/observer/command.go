@@ -30,7 +30,7 @@ func NewCommand() *Command {
 		},
 	}
 
-	// default flags
+	// debug flags
 	utils.CobraFlags(&command, append(debug.Flags, utils.MetricFlags...))
 
 	instance := Command{
@@ -72,7 +72,11 @@ func (command *Command) withNetRestrict() {
 }
 
 func (command *Command) ExecuteContext(ctx context.Context, runFunc func(ctx context.Context, flags CommandFlags) error) error {
-	command.command.RunE = func(cmd *cobra.Command, _ []string) error {
+	command.command.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		// apply debug flags
+		return utils.SetupCobra(cmd)
+	}
+	command.command.RunE = func(cmd *cobra.Command, args []string) error {
 		return runFunc(cmd.Context(), command.flags)
 	}
 	return command.command.ExecuteContext(ctx)

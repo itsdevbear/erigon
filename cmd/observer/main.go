@@ -15,9 +15,6 @@ import (
 )
 
 func mainWithCommand(ctx context.Context, flags observer.CommandFlags) error {
-	// TODO
-	// log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(flags.Verbosity), log.StderrHandler))
-
 	natInterface, err := nat.Parse(flags.NatDesc)
 	if err != nil {
 		return err
