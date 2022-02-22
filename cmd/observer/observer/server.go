@@ -8,6 +8,7 @@ import (
 	"github.com/ledgerwatch/erigon/p2p/enode"
 	"github.com/ledgerwatch/erigon/p2p/nat"
 	"github.com/ledgerwatch/erigon/p2p/netutil"
+	"github.com/ledgerwatch/log/v3"
 	"net"
 )
 
@@ -19,6 +20,8 @@ type Server struct {
 	discConfig discover.Config
 
 	discV4    *discover.UDPv4
+
+	log log.Logger
 }
 
 func NewServer(flags CommandFlags) (*Server, error) {
@@ -43,13 +46,14 @@ func NewServer(flags CommandFlags) (*Server, error) {
 		}
 	}
 
+	logger := log.New()
+
 	discConfig := discover.Config{
 		PrivateKey:  privateKey,
 		NetRestrict: netRestrictList,
 		// TODO Bootnodes
 		// Bootnodes:   server.BootstrapNodes,
-		// TODO log
-		// Log:         srv.log,
+		Log:         logger.New(),
 	}
 
 	instance := Server{
@@ -57,6 +61,7 @@ func NewServer(flags CommandFlags) (*Server, error) {
 		listenAddr:   listenAddr,
 		natInterface: natInterface,
 		discConfig: discConfig,
+		log: logger,
 	}
 	return &instance, nil
 }
@@ -138,8 +143,7 @@ func (server *Server) listenDiscovery(ctx context.Context) (*discover.UDPv4, err
 	// TODO NAT
 	// mapNATPort()
 
-	// TODO log
-	//srv.log.Trace("UDP listener up", "addr", realAddr)
+	server.log.Trace("UDP listener up", "addr", realAddr)
 
 	return discover.ListenV4(ctx, conn, server.localNode, server.discConfig)
 }
