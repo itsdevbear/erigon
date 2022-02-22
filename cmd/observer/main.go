@@ -1,75 +1,81 @@
 package main
 
 import (
+	"context"
 	"crypto/ecdsa"
-	"flag"
+	"fmt"
+	"github.com/ledgerwatch/erigon-lib/common"
+	"github.com/ledgerwatch/erigon/cmd/observer/observer"
 	"github.com/ledgerwatch/erigon/cmd/utils"
 	"github.com/ledgerwatch/erigon/p2p/discover"
 	"github.com/ledgerwatch/erigon/p2p/enode"
 	"github.com/ledgerwatch/erigon/p2p/nat"
 	"github.com/ledgerwatch/erigon/p2p/netutil"
-	"github.com/ledgerwatch/log/v3"
 	"net"
 )
 
-func main() {
-	var (
-		listenAddr  = flag.String("addr", ":30303", "listen address")
-		_           = flag.String("chain", "", "pick a chain to assume (mainnet, ropsten, etc.)")
-		natdesc     = flag.String("nat", "none", "port mapping mechanism (any|none|upnp|pmp|extip:<IP>)")
-		netrestrict = flag.String("netrestrict", "", "restrict network communication to the given IP networks (CIDR masks)")
-		verbosity   = flag.Int("verbosity", int(log.LvlInfo), "log verbosity (0-5)")
-	)
-	flag.Parse()
+func mainWithCommand(ctx context.Context, flags observer.CommandFlags) error {
+	// TODO
+	// log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(flags.Verbosity), log.StderrHandler))
 
-	log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(*verbosity), log.StderrHandler))
-
-	natm, err := nat.Parse(*natdesc)
+	natInterface, err := nat.Parse(flags.NatDesc)
 	if err != nil {
-		utils.Fatalf("-nat: %v", err)
+		return err
 	}
 
 	var restrictList *netutil.Netlist
-	if *netrestrict != "" {
-		restrictList, err = netutil.ParseNetlist(*netrestrict)
+	if flags.NetRestrict != "" {
+		restrictList, err = netutil.ParseNetlist(flags.NetRestrict)
 		if err != nil {
-			utils.Fatalf("-netrestrict: %v", err)
+			return err
 		}
 	}
 
-	addr, err := net.ResolveUDPAddr("udp", *listenAddr)
+	listenAddr := fmt.Sprintf(":%d", flags.ListenPort)
+	addr, err := net.ResolveUDPAddr("udp", listenAddr)
 	if err != nil {
-		utils.Fatalf("-ResolveUDPAddr: %v", err)
+		return fmt.Errorf("ResolveUDPAddr error: %w", err)
 	}
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
-		utils.Fatalf("-ListenUDP: %v", err)
+		return fmt.Errorf("ListenUDP error: %w", err)
 	}
 
-	realaddr := conn.LocalAddr().(*net.UDPAddr)
-	if natm != nil {
-		if !realaddr.IP.IsLoopback() {
-			go nat.Map(natm, nil, "udp", realaddr.Port, realaddr.Port, "ethereum discovery")
+	realAddr := conn.LocalAddr().(*net.UDPAddr)
+	if natInterface != nil {
+		if !realAddr.IP.IsLoopback() {
+			go nat.Map(natInterface, nil, "udp", realAddr.Port, realAddr.Port, "ethereum discovery")
 		}
-		if ext, err := natm.ExternalIP(); err == nil {
-			realaddr = &net.UDPAddr{IP: ext, Port: realaddr.Port}
+		if ext, err := natInterface.ExternalIP(); err == nil {
+			realAddr = &net.UDPAddr{IP: ext, Port: realAddr.Port}
 		}
 	}
 
 	db, err := enode.OpenDB("")
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	var nodeKey *ecdsa.PrivateKey = nil
-	ln := enode.NewLocalNode(db, nodeKey)
+	localNode := enode.NewLocalNode(db, nodeKey)
 	cfg := discover.Config{
 		PrivateKey:  nodeKey,
 		NetRestrict: restrictList,
 	}
-	if _, err := discover.ListenUDP(conn, ln, cfg); err != nil {
-		utils.Fatalf("%v", err)
+	if _, err := discover.ListenUDP(conn, localNode, cfg); err != nil {
+		return err
 	}
 
 	select {}
+}
+
+func main() {
+	ctx, cancel := common.RootContext()
+	defer cancel()
+
+	command := observer.NewCommand()
+
+	if err := command.ExecuteContext(ctx, mainWithCommand); err != nil {
+		utils.Fatalf("%v", err)
+	}
 }
