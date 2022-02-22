@@ -141,5 +141,5 @@ func (server *Server) listenDiscovery(ctx context.Context) (*discover.UDPv4, err
 	// TODO log
 	//srv.log.Trace("UDP listener up", "addr", realAddr)
 
-	return discover.ListenV4(conn, server.localNode, server.discConfig)
+	return discover.ListenV4(ctx, conn, server.localNode, server.discConfig)
 }
