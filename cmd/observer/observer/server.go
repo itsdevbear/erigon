@@ -10,6 +10,7 @@ import (
 	"github.com/ledgerwatch/erigon/p2p/netutil"
 	"github.com/ledgerwatch/log/v3"
 	"net"
+	"path/filepath"
 )
 
 type Server struct {
@@ -25,8 +26,9 @@ type Server struct {
 }
 
 func NewServer(flags CommandFlags) (*Server, error) {
+	nodeDBPath := filepath.Join(flags.DataDir, "nodes", "eth66")
 	var privateKey *ecdsa.PrivateKey
-	localNode, err := makeLocalNode("TODO", privateKey)
+	localNode, err := makeLocalNode(nodeDBPath, privateKey)
 	if err != nil {
 		return nil, err
 	}
