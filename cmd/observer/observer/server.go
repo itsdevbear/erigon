@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"github.com/ledgerwatch/erigon/p2p"
 	"github.com/ledgerwatch/erigon/p2p/discover"
 	"github.com/ledgerwatch/erigon/p2p/enode"
 	"github.com/ledgerwatch/erigon/p2p/nat"
@@ -27,7 +28,13 @@ type Server struct {
 
 func NewServer(flags CommandFlags) (*Server, error) {
 	nodeDBPath := filepath.Join(flags.DataDir, "nodes", "eth66")
-	var privateKey *ecdsa.PrivateKey
+
+	nodeKeyConfig := p2p.NodeKeyConfig{}
+	privateKey, err := nodeKeyConfig.LoadOrParseOrGenerateAndSave(flags.NodeKeyFile, flags.NodeKeyHex, flags.DataDir)
+	if err != nil {
+		return nil, err
+	}
+
 	localNode, err := makeLocalNode(nodeDBPath, privateKey)
 	if err != nil {
 		return nil, err

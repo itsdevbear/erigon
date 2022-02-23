@@ -13,6 +13,8 @@ type CommandFlags struct {
 	ListenPort  int
 	NatDesc     string
 	NetRestrict string
+	NodeKeyFile string
+	NodeKeyHex  string
 }
 
 type Command struct {
@@ -41,6 +43,8 @@ func NewCommand() *Command {
 	instance.withListenPort()
 	instance.withNAT()
 	instance.withNetRestrict()
+	instance.withNodeKeyFile()
+	instance.withNodeKeyHex()
 
 	return &instance
 }
@@ -69,6 +73,16 @@ func (command *Command) withNAT() {
 func (command *Command) withNetRestrict() {
 	flag := utils.NetrestrictFlag
 	command.command.Flags().StringVar(&command.flags.NetRestrict, flag.Name, flag.Value, flag.Usage)
+}
+
+func (command *Command) withNodeKeyFile() {
+	flag := utils.NodeKeyFileFlag
+	command.command.Flags().StringVar(&command.flags.NodeKeyFile, flag.Name, flag.Value, flag.Usage)
+}
+
+func (command *Command) withNodeKeyHex() {
+	flag := utils.NodeKeyHexFlag
+	command.command.Flags().StringVar(&command.flags.NodeKeyHex, flag.Name, flag.Value, flag.Usage)
 }
 
 func (command *Command) ExecuteContext(ctx context.Context, runFunc func(ctx context.Context, flags CommandFlags) error) error {
