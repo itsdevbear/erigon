@@ -15,11 +15,12 @@ type CommandFlags struct {
 	NetRestrict string
 	NodeKeyFile string
 	NodeKeyHex  string
+	Bootnodes   string
 }
 
 type Command struct {
 	command cobra.Command
-	flags CommandFlags
+	flags   CommandFlags
 }
 
 func NewCommand() *Command {
@@ -45,6 +46,7 @@ func NewCommand() *Command {
 	instance.withNetRestrict()
 	instance.withNodeKeyFile()
 	instance.withNodeKeyHex()
+	instance.withBootnodes()
 
 	return &instance
 }
@@ -83,6 +85,11 @@ func (command *Command) withNodeKeyFile() {
 func (command *Command) withNodeKeyHex() {
 	flag := utils.NodeKeyHexFlag
 	command.command.Flags().StringVar(&command.flags.NodeKeyHex, flag.Name, flag.Value, flag.Usage)
+}
+
+func (command *Command) withBootnodes() {
+	flag := utils.BootnodesFlag
+	command.command.Flags().StringVar(&command.flags.Bootnodes, flag.Name, flag.Value, flag.Usage)
 }
 
 func (command *Command) ExecuteContext(ctx context.Context, runFunc func(ctx context.Context, flags CommandFlags) error) error {

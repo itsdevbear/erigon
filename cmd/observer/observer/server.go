@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"github.com/ledgerwatch/erigon/cmd/utils"
 	"github.com/ledgerwatch/erigon/p2p"
 	"github.com/ledgerwatch/erigon/p2p/discover"
 	"github.com/ledgerwatch/erigon/p2p/enode"
@@ -17,11 +18,11 @@ import (
 type Server struct {
 	localNode *enode.LocalNode
 
-	listenAddr string
+	listenAddr   string
 	natInterface nat.Interface
-	discConfig discover.Config
+	discConfig   discover.Config
 
-	discV4    *discover.UDPv4
+	discV4 *discover.UDPv4
 
 	log log.Logger
 }
@@ -55,13 +56,17 @@ func NewServer(flags CommandFlags) (*Server, error) {
 		}
 	}
 
+	bootnodes, err := utils.GetBootnodesFromFlags(flags.Bootnodes, flags.Chain)
+	if err != nil {
+		return nil, fmt.Errorf("bootnodes parse error: %w", err)
+	}
+
 	logger := log.New()
 
 	discConfig := discover.Config{
 		PrivateKey:  privateKey,
 		NetRestrict: netRestrictList,
-		// TODO Bootnodes
-		// Bootnodes:   server.BootstrapNodes,
+		Bootnodes:   bootnodes,
 		Log:         logger.New(),
 	}
 
@@ -69,8 +74,8 @@ func NewServer(flags CommandFlags) (*Server, error) {
 		localNode:    localNode,
 		listenAddr:   listenAddr,
 		natInterface: natInterface,
-		discConfig: discConfig,
-		log: logger,
+		discConfig:   discConfig,
+		log:          logger,
 	}
 	return &instance, nil
 }
@@ -124,7 +129,7 @@ func mapNATPort() {
 		}
 	}
 }
- */
+*/
 
 func (server *Server) Listen(ctx context.Context) error {
 	discV4, err := server.listenDiscovery(ctx)
