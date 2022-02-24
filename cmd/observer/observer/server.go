@@ -3,8 +3,10 @@ package observer
 import (
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
 	"github.com/ledgerwatch/erigon/cmd/utils"
+	"github.com/ledgerwatch/erigon/common/debug"
 	"github.com/ledgerwatch/erigon/p2p"
 	"github.com/ledgerwatch/erigon/p2p/discover"
 	"github.com/ledgerwatch/erigon/p2p/enode"
@@ -43,7 +45,7 @@ func NewServer(flags CommandFlags) (*Server, error) {
 
 	listenAddr := fmt.Sprintf(":%d", flags.ListenPort)
 
-	natInterface, err := nat.Parse(flags.NatDesc)
+	natInterface, err := nat.Parse(flags.NATDesc)
 	if err != nil {
 		return nil, fmt.Errorf("NAT parse error: %w", err)
 	}
@@ -90,46 +92,37 @@ func makeLocalNode(nodeDBPath string, privateKey *ecdsa.PrivateKey) (*enode.Loca
 	return localNode, nil
 }
 
-/* TODO NAT
-func setupNAT() error {
-	switch srv.NAT.(type) {
-	case nil:
-		// No NAT interface, do nothing.
-	case nat.ExtIP:
-		// ExtIP doesn't block, set the IP right away.
-		ip, _ := srv.NAT.ExternalIP()
-		srv.localNode.SetStaticIP(ip)
-	default:
-		// Ask the router about the IP. This takes a while and blocks startup,
-		// do it in the background.
-		srv.loopWG.Add(1)
-		go func() {
-			defer debug.LogPanic()
-			defer srv.loopWG.Done()
-			if ip, err := srv.NAT.ExternalIP(); err == nil {
-				srv.localNode.SetStaticIP(ip)
-			}
-		}()
+func (server *Server) mapNATPort(ctx context.Context, realAddr *net.UDPAddr) {
+	if server.natInterface == nil {
+		return
 	}
-	return nil
-}
-*/
-/* TODO NAT
-func mapNATPort() {
-	if srv.NAT != nil {
-		if !realAddr.IP.IsLoopback() {
-			go func() {
-				defer debug.LogPanic()
-				nat.Map(srv.NAT, srv.quit, "udp", realAddr.Port, realAddr.Port, "ethereum discovery")
-			}()
-		}
+	if realAddr.IP.IsLoopback() {
+		return
+	}
+	if !server.natInterface.SupportsMapping() {
+		return
+	}
 
-		if ext, err := natInterface.ExternalIP(); err == nil {
-			realAddr = &net.UDPAddr{IP: ext, Port: realAddr.Port}
-		}
-	}
+	go func() {
+		defer debug.LogPanic()
+		nat.Map(server.natInterface, ctx.Done(), "udp", realAddr.Port, realAddr.Port, "ethereum discovery")
+	}()
 }
-*/
+
+func (server *Server) detectNATExternalIP() (net.IP, error) {
+	if server.natInterface == nil {
+		return nil, errors.New("no NAT flag configured")
+	}
+	if _, hasExtIP := server.natInterface.(nat.ExtIP); !hasExtIP {
+		server.log.Info("Detecting external IP...")
+	}
+	ip, err := server.natInterface.ExternalIP()
+	if err != nil {
+		return nil, fmt.Errorf("NAT ExternalIP error: %w", err)
+	}
+	server.log.Debug("External IP detected", "ip", ip)
+	return ip, nil
+}
 
 func (server *Server) Listen(ctx context.Context) error {
 	discV4, err := server.listenDiscovery(ctx)
@@ -142,6 +135,14 @@ func (server *Server) Listen(ctx context.Context) error {
 }
 
 func (server *Server) listenDiscovery(ctx context.Context) (*discover.UDPv4, error) {
+	if server.natInterface != nil {
+		ip, err := server.detectNATExternalIP()
+		if err != nil {
+			return nil, err
+		}
+		server.localNode.SetStaticIP(ip)
+	}
+
 	addr, err := net.ResolveUDPAddr("udp", server.listenAddr)
 	if err != nil {
 		return nil, fmt.Errorf("ResolveUDPAddr error: %w", err)
@@ -154,10 +155,11 @@ func (server *Server) listenDiscovery(ctx context.Context) (*discover.UDPv4, err
 	realAddr := conn.LocalAddr().(*net.UDPAddr)
 	server.localNode.SetFallbackUDP(realAddr.Port)
 
-	// TODO NAT
-	// mapNATPort()
+	if server.natInterface != nil {
+		server.mapNATPort(ctx, realAddr)
+	}
 
-	server.log.Trace("UDP listener up", "addr", realAddr)
+	server.log.Debug("UDP listener up", "addr", realAddr)
 
 	return discover.ListenV4(ctx, conn, server.localNode, server.discConfig)
 }

@@ -11,7 +11,7 @@ type CommandFlags struct {
 	DataDir     string
 	Chain       string
 	ListenPort  int
-	NatDesc     string
+	NATDesc     string
 	NetRestrict string
 	NodeKeyFile string
 	NodeKeyHex  string
@@ -69,7 +69,7 @@ func (command *Command) withListenPort() {
 
 func (command *Command) withNAT() {
 	flag := utils.NATFlag
-	command.command.Flags().StringVar(&command.flags.NatDesc, flag.Name, flag.Value, flag.Usage)
+	command.command.Flags().StringVar(&command.flags.NATDesc, flag.Name, flag.Value, flag.Usage)
 }
 
 func (command *Command) withNetRestrict() {
