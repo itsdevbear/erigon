@@ -131,7 +131,9 @@ func (server *Server) Listen(ctx context.Context) error {
 	}
 
 	server.discV4 = discV4
-	select {}
+
+	<-ctx.Done()
+	return nil
 }
 
 func (server *Server) listenDiscovery(ctx context.Context) (*discover.UDPv4, error) {
