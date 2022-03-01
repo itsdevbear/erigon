@@ -39,9 +39,7 @@ func (interrogator *Interrogator) Run(ctx context.Context) ([]*enode.Node, error
 	// TODO filter enr
 	interrogator.log.Debug("Got ENR", "enr", enr)
 
-	keygenContext, keygenCancel := context.WithTimeout(ctx, 10*time.Second)
-	defer keygenCancel()
-	keys := keygen(keygenContext, interrogator.node.Pubkey())
+	keys := keygen(ctx, interrogator.node.Pubkey(), 10*time.Second, interrogator.log)
 	interrogator.log.Debug(fmt.Sprintf("Generated %d keys", len(keys)))
 
 	var peers []*enode.Node
