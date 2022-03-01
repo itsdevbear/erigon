@@ -24,8 +24,6 @@ type Server struct {
 	natInterface nat.Interface
 	discConfig   discover.Config
 
-	discV4 *discover.UDPv4
-
 	log log.Logger
 }
 
@@ -73,11 +71,11 @@ func NewServer(flags CommandFlags) (*Server, error) {
 	}
 
 	instance := Server{
-		localNode:    localNode,
-		listenAddr:   listenAddr,
-		natInterface: natInterface,
-		discConfig:   discConfig,
-		log:          logger,
+		localNode,
+		listenAddr,
+		natInterface,
+		discConfig,
+		logger,
 	}
 	return &instance, nil
 }
@@ -90,6 +88,10 @@ func makeLocalNode(nodeDBPath string, privateKey *ecdsa.PrivateKey) (*enode.Loca
 	localNode := enode.NewLocalNode(db, privateKey)
 	localNode.SetFallbackIP(net.IP{127, 0, 0, 1})
 	return localNode, nil
+}
+
+func (server *Server) Bootnodes() []*enode.Node {
+	return server.discConfig.Bootnodes
 }
 
 func (server *Server) mapNATPort(ctx context.Context, realAddr *net.UDPAddr) {
@@ -124,19 +126,7 @@ func (server *Server) detectNATExternalIP() (net.IP, error) {
 	return ip, nil
 }
 
-func (server *Server) Listen(ctx context.Context) error {
-	discV4, err := server.listenDiscovery(ctx)
-	if err != nil {
-		return err
-	}
-
-	server.discV4 = discV4
-
-	<-ctx.Done()
-	return nil
-}
-
-func (server *Server) listenDiscovery(ctx context.Context) (*discover.UDPv4, error) {
+func (server *Server) Listen(ctx context.Context) (*discover.UDPv4, error) {
 	if server.natInterface != nil {
 		ip, err := server.detectNATExternalIP()
 		if err != nil {
@@ -161,7 +151,7 @@ func (server *Server) listenDiscovery(ctx context.Context) (*discover.UDPv4, err
 		server.mapNATPort(ctx, realAddr)
 	}
 
-	server.log.Debug("UDP listener up", "addr", realAddr)
+	server.log.Debug("Discovery UDP listener is up", "addr", realAddr)
 
 	return discover.ListenV4(ctx, conn, server.localNode, server.discConfig)
 }

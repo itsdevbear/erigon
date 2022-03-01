@@ -5,6 +5,7 @@ import (
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon/cmd/observer/observer"
 	"github.com/ledgerwatch/erigon/cmd/utils"
+	"github.com/ledgerwatch/log/v3"
 )
 
 func mainWithFlags(ctx context.Context, flags observer.CommandFlags) error {
@@ -12,7 +13,18 @@ func mainWithFlags(ctx context.Context, flags observer.CommandFlags) error {
 	if err != nil {
 		return err
 	}
-	return server.Listen(ctx)
+
+	discV4, err := server.Listen(ctx)
+	if err != nil {
+		return err
+	}
+
+	crawler, err := observer.NewCrawler(discV4, server.Bootnodes(), log.Root())
+	if err != nil {
+		return err
+	}
+
+	return crawler.Run(ctx)
 }
 
 func main() {
