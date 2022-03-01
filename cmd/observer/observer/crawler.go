@@ -2,6 +2,7 @@ package observer
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"github.com/ledgerwatch/erigon/p2p/enode"
@@ -11,6 +12,7 @@ import (
 type DiscV4Transport interface {
 	RequestENR(*enode.Node) (*enode.Node, error)
 	Ping(*enode.Node) error
+	LookupPubkey(key *ecdsa.PublicKey) []*enode.Node
 }
 
 type Crawler struct {
@@ -63,10 +65,14 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 		}
 
 		go func() {
-			err := interrogator.Run(ctx)
+			peers, err := interrogator.Run(ctx)
 			if err != nil {
 				logger.Warn("Failed to interrogate node", "err", err)
+				return
 			}
+
+			// TODO save to DB
+			logger.Debug(fmt.Sprintf("Got %d peers", len(peers)))
 		}()
 	}
 	return nil
