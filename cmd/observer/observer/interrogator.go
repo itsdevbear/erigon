@@ -2,22 +2,27 @@ package observer
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"github.com/ledgerwatch/erigon/core/forkid"
+	"github.com/ledgerwatch/erigon/eth/protocols/eth"
 	"github.com/ledgerwatch/erigon/p2p/enode"
 	"github.com/ledgerwatch/log/v3"
 	"time"
 )
 
 type Interrogator struct {
-	node      *enode.Node
-	transport DiscV4Transport
-	log       log.Logger
+	node       *enode.Node
+	transport  DiscV4Transport
+	forkFilter forkid.Filter
+	log        log.Logger
 }
 
-func NewInterrogator(node *enode.Node, transport DiscV4Transport, logger log.Logger) (*Interrogator, error) {
+func NewInterrogator(node *enode.Node, transport DiscV4Transport, forkFilter forkid.Filter, logger log.Logger) (*Interrogator, error) {
 	instance := Interrogator{
 		node,
 		transport,
+		forkFilter,
 		logger,
 	}
 	return &instance, nil
@@ -36,8 +41,20 @@ func (interrogator *Interrogator) Run(ctx context.Context) ([]*enode.Node, error
 		return nil, fmt.Errorf("ENR request failed: %w", err)
 	}
 
-	// TODO filter enr
 	interrogator.log.Debug("Got ENR", "enr", enr)
+
+	forkID, err := eth.LoadENRForkID(interrogator.node.Record())
+	if err != nil {
+		return nil, err
+	}
+
+	// filter by fork ID
+	if forkID != nil {
+		err := interrogator.forkFilter(*forkID)
+		if errors.Is(err, forkid.ErrLocalIncompatibleOrStale) {
+			return nil, fmt.Errorf("incompatible ENR fork ID %w", err)
+		}
+	}
 
 	keys := keygen(ctx, interrogator.node.Pubkey(), 10*time.Second, interrogator.log)
 	interrogator.log.Debug(fmt.Sprintf("Generated %d keys", len(keys)))
