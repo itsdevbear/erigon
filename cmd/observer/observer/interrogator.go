@@ -42,12 +42,24 @@ func (interrogator *Interrogator) Run(ctx context.Context) ([]*enode.Node, error
 	keys := keygen(ctx, interrogator.node.Pubkey(), 10*time.Second, interrogator.log)
 	interrogator.log.Debug(fmt.Sprintf("Generated %d keys", len(keys)))
 
-	var peers []*enode.Node
+	peersByID := make(map[enode.ID]*enode.Node)
 	for _, key := range keys {
 		neighbors := interrogator.transport.LookupPubkey(key)
-		// TODO remove dupes
-		peers = append(peers, neighbors...)
+
+		for _, node := range neighbors {
+			peersByID[node.ID()] = node
+		}
 	}
 
+	peers := valuesOfIDToNodeMap(peersByID)
+
 	return peers, nil
+}
+
+func valuesOfIDToNodeMap(m map[enode.ID]*enode.Node) []*enode.Node {
+	values := make([]*enode.Node, 0, len(m))
+	for _, value := range m {
+		values = append(values, value)
+	}
+	return values
 }

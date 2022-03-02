@@ -57,10 +57,15 @@ func keygen(parentContext context.Context, targetKey *ecdsa.PublicKey, timeout t
 		}
 	}
 
-	keys := make([]*ecdsa.PublicKey, 0, len(keysAtDist))
-	for _, key := range keysAtDist {
-		keys = append(keys, key)
-	}
+	keys := valuesOfIntToPubkeyMap(keysAtDist)
 
 	return keys
+}
+
+func valuesOfIntToPubkeyMap(m map[int]*ecdsa.PublicKey) []*ecdsa.PublicKey {
+	values := make([]*ecdsa.PublicKey, 0, len(m))
+	for _, value := range m {
+		values = append(values, value)
+	}
+	return values
 }
