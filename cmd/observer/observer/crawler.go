@@ -2,7 +2,6 @@ package observer
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"github.com/ledgerwatch/erigon/core/forkid"
@@ -10,12 +9,6 @@ import (
 	"github.com/ledgerwatch/erigon/params"
 	"github.com/ledgerwatch/log/v3"
 )
-
-type DiscV4Transport interface {
-	RequestENR(*enode.Node) (*enode.Node, error)
-	Ping(*enode.Node) error
-	LookupPubkey(key *ecdsa.PublicKey) []*enode.Node
-}
 
 type Crawler struct {
 	transport  DiscV4Transport

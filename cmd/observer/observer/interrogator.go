@@ -2,6 +2,7 @@ package observer
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"github.com/ledgerwatch/erigon/core/forkid"
@@ -10,6 +11,12 @@ import (
 	"github.com/ledgerwatch/log/v3"
 	"time"
 )
+
+type DiscV4Transport interface {
+	RequestENR(*enode.Node) (*enode.Node, error)
+	Ping(*enode.Node) error
+	FindNode(toNode *enode.Node, targetKey *ecdsa.PublicKey) ([]*enode.Node, error)
+}
 
 type Interrogator struct {
 	node       *enode.Node
@@ -61,11 +68,16 @@ func (interrogator *Interrogator) Run(ctx context.Context) ([]*enode.Node, error
 
 	peersByID := make(map[enode.ID]*enode.Node)
 	for _, key := range keys {
-		neighbors := interrogator.transport.LookupPubkey(key)
+		neighbors, err := interrogator.transport.FindNode(interrogator.node, key)
+		if err != nil {
+			return nil, fmt.Errorf("FindNode request failed: %w", err)
+		}
 
 		for _, node := range neighbors {
 			peersByID[node.ID()] = node
 		}
+
+		sleep(ctx, 1*time.Second)
 	}
 
 	peers := valuesOfIDToNodeMap(peersByID)
@@ -79,4 +91,10 @@ func valuesOfIDToNodeMap(m map[enode.ID]*enode.Node) []*enode.Node {
 		values = append(values, value)
 	}
 	return values
+}
+
+func sleep(parentContext context.Context, timeout time.Duration) {
+	ctx, cancel := context.WithTimeout(parentContext, timeout)
+	defer cancel()
+	<-ctx.Done()
 }
