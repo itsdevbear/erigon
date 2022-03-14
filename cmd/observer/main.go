@@ -6,10 +6,16 @@ import (
 	"github.com/ledgerwatch/erigon/cmd/observer/observer"
 	"github.com/ledgerwatch/erigon/cmd/utils"
 	"github.com/ledgerwatch/log/v3"
+	"path/filepath"
 )
 
 func mainWithFlags(ctx context.Context, flags observer.CommandFlags) error {
 	server, err := observer.NewServer(flags)
+	if err != nil {
+		return err
+	}
+
+	db, err := observer.NewDBSQLite(filepath.Join(flags.DataDir, "observer.sqlite"))
 	if err != nil {
 		return err
 	}
@@ -19,7 +25,7 @@ func mainWithFlags(ctx context.Context, flags observer.CommandFlags) error {
 		return err
 	}
 
-	crawler, err := observer.NewCrawler(discV4, server.Bootnodes(), flags.Chain, log.Root())
+	crawler, err := observer.NewCrawler(discV4, db, server.Bootnodes(), flags.Chain, log.Root())
 	if err != nil {
 		return err
 	}

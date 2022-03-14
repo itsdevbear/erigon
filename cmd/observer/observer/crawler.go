@@ -8,10 +8,12 @@ import (
 	"github.com/ledgerwatch/erigon/p2p/enode"
 	"github.com/ledgerwatch/erigon/params"
 	"github.com/ledgerwatch/log/v3"
+	"time"
 )
 
 type Crawler struct {
 	transport  DiscV4Transport
+	db         DB
 	bootnodes  []*enode.Node
 	forkFilter forkid.Filter
 	log        log.Logger
@@ -19,6 +21,7 @@ type Crawler struct {
 
 func NewCrawler(
 	transport DiscV4Transport,
+	db DB,
 	bootnodes []*enode.Node,
 	chain string,
 	logger log.Logger,
@@ -33,6 +36,7 @@ func NewCrawler(
 
 	instance := Crawler{
 		transport,
+		db,
 		bootnodes,
 		forkFilter,
 		logger,
@@ -59,7 +63,28 @@ func (crawler *Crawler) selectCandidates(ctx context.Context, nodes chan<- *enod
 		case nodes <- node:
 		}
 	}
-	return nil
+
+	for ctx.Err() == nil {
+		// TODO: limit ?
+		candidates, err := crawler.db.TakeCandidates(ctx, 2)
+		if err != nil {
+			return err
+		}
+
+		if len(candidates) == 0 {
+			sleep(ctx, 1*time.Second)
+		}
+
+		for _, node := range candidates {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case nodes <- node:
+			}
+		}
+	}
+
+	return ctx.Err()
 }
 
 func (crawler *Crawler) Run(ctx context.Context) error {
@@ -81,8 +106,14 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 				return
 			}
 
-			// TODO save to DB
 			logger.Debug(fmt.Sprintf("Got %d peers", len(peers)))
+			for _, peer := range peers {
+				err = crawler.db.UpsertNode(ctx, peer)
+				if err != nil {
+					logger.Error("Failed to save node", "err", err)
+					break
+				}
+			}
 		}()
 	}
 	return nil
