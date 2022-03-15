@@ -31,7 +31,9 @@ CREATE TABLE IF NOT EXISTS nodes (
     ip_v6_port_rlpx INTEGER,
     taken_last INTEGER,
     updated INTEGER NOT NULL
-)
+);
+
+CREATE INDEX IF NOT EXISTS idx_nodes_taken_last ON nodes (taken_last);
 `
 
 	sqlUpsertNode = `
@@ -57,7 +59,10 @@ ON CONFLICT(id) DO UPDATE SET
 `
 
 	sqlFindCandidates = `
-SELECT * FROM nodes LIMIT ?
+SELECT * FROM nodes
+WHERE (taken_last IS NULL) OR (taken_last < ?)
+ORDER BY taken_last
+LIMIT ?
 `
 
 	sqlMarkTakenNodes = `
@@ -146,8 +151,9 @@ func (db *DBSQLite) UpsertNode(ctx context.Context, node *enode.Node) error {
 	return nil
 }
 
-func (db *DBSQLite) FindCandidates(ctx context.Context, limit uint) ([]*enode.Node, error) {
-	cursor, err := db.db.QueryContext(ctx, sqlFindCandidates, limit)
+func (db *DBSQLite) FindCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) ([]*enode.Node, error) {
+	takenLastBefore := time.Now().Add(-minUnusedDuration).Unix()
+	cursor, err := db.db.QueryContext(ctx, sqlFindCandidates, takenLastBefore, limit)
 	if err != nil {
 		return nil, fmt.Errorf("FindCandidates failed to query candidates: %w", err)
 	}
@@ -248,13 +254,13 @@ func (db *DBSQLite) MarkTakenNodes(ctx context.Context, nodes []*enode.Node) err
 	return nil
 }
 
-func (db *DBSQLite) TakeCandidates(ctx context.Context, limit uint) ([]*enode.Node, error) {
+func (db *DBSQLite) TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) ([]*enode.Node, error) {
 	tx, err := db.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("TakeCandidates failed to start transaction: %w", err)
 	}
 
-	nodes, err := db.FindCandidates(ctx, limit)
+	nodes, err := db.FindCandidates(ctx, minUnusedDuration, limit)
 	if err != nil {
 		_ = tx.Rollback()
 		return nil, err

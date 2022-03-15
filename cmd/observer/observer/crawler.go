@@ -65,8 +65,10 @@ func (crawler *Crawler) selectCandidates(ctx context.Context, nodes chan<- *enod
 	}
 
 	for ctx.Err() == nil {
+		reselectPeriod := 10*time.Minute
 		// TODO: limit ?
-		candidates, err := crawler.db.TakeCandidates(ctx, 2)
+		limit := uint(2)
+		candidates, err := crawler.db.TakeCandidates(ctx, reselectPeriod, limit)
 		if err != nil {
 			return err
 		}

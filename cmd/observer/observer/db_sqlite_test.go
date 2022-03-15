@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestDBSQLiteInsertAndFind(t *testing.T) {
@@ -20,7 +21,7 @@ func TestDBSQLiteInsertAndFind(t *testing.T) {
 	err = db.UpsertNode(ctx, node)
 	require.Nil(t, err)
 
-	candidates, err := db.FindCandidates(ctx, 1)
+	candidates, err := db.FindCandidates(ctx, time.Second, 1)
 	require.Nil(t, err)
 	require.Equal(t, 1, len(candidates))
 
