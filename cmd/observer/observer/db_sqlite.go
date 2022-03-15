@@ -10,6 +10,7 @@ import (
 	_ "modernc.org/sqlite"
 	"net"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -17,6 +18,7 @@ type DBSQLite struct {
 	db *sql.DB
 }
 
+// language=SQL
 const (
 	sqlCreateSchema = `
 CREATE TABLE IF NOT EXISTS nodes (
@@ -27,6 +29,7 @@ CREATE TABLE IF NOT EXISTS nodes (
     ip_v6 TEXT,
     ip_v6_port_disc INTEGER,
     ip_v6_port_rlpx INTEGER,
+    taken_last INTEGER,
     updated INTEGER NOT NULL
 )
 `
@@ -40,8 +43,9 @@ INSERT INTO nodes(
     ip_v6,
     ip_v6_port_disc,
     ip_v6_port_rlpx,
+    taken_last,
     updated
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
     ip = excluded.ip,
     port_disc = excluded.port_disc,
@@ -54,6 +58,10 @@ ON CONFLICT(id) DO UPDATE SET
 
 	sqlFindCandidates = `
 SELECT * FROM nodes LIMIT ?
+`
+
+	sqlMarkTakenNodes = `
+UPDATE nodes SET taken_last = ? WHERE id IN (123)
 `
 )
 
@@ -76,11 +84,10 @@ func (db *DBSQLite) UpsertNode(ctx context.Context, node *enode.Node) error {
 	if node.Incomplete() {
 		return errors.New("UpsertNode can't save incomplete nodes")
 	}
-	nodeURL, err := url.Parse(node.URLv4())
+	id, err := nodeID(node)
 	if err != nil {
-		return fmt.Errorf("failed to parse node URL: %w", err)
+		return fmt.Errorf("failed to get node ID: %w", err)
 	}
-	id := nodeURL.User.Username()
 
 	var ip *string
 	var ipEntry enr.IPv4
@@ -124,12 +131,14 @@ func (db *DBSQLite) UpsertNode(ctx context.Context, node *enode.Node) error {
 		ipV6PortRLPx = &value
 	}
 
+	var takenLast *int
 	updated := time.Now().Unix()
 
 	_, err = db.db.ExecContext(ctx, sqlUpsertNode,
 		id,
 		ip, portDisc, portRLPx,
 		ipV6, ipV6PortDisc, ipV6PortRLPx,
+		takenLast,
 		updated)
 	if err != nil {
 		return fmt.Errorf("failed to upsert a node: %w", err)
@@ -155,11 +164,13 @@ func (db *DBSQLite) FindCandidates(ctx context.Context, limit uint) ([]*enode.No
 		var ipV6 sql.NullString
 		var ipV6PortDisc sql.NullInt32
 		var ipV6PortRLPx sql.NullInt32
+		var takenLastTimestamp sql.NullInt64
 		var updatedTimestamp int
 
 		err := cursor.Scan(&id,
 			&ip, &portDisc, &portRLPx,
 			&ipV6, &ipV6PortDisc, &ipV6PortRLPx,
+			&takenLastTimestamp,
 			&updatedTimestamp)
 		if err != nil {
 			return nil, fmt.Errorf("FindCandidates failed to read candidate data: %w", err)
@@ -216,7 +227,24 @@ func (db *DBSQLite) FindCandidates(ctx context.Context, limit uint) ([]*enode.No
 }
 
 func (db *DBSQLite) MarkTakenNodes(ctx context.Context, nodes []*enode.Node) error {
-	// TODO
+	if len(nodes) == 0 {
+		return nil
+	}
+
+	takenLast := time.Now().Unix()
+	ids, err := idsOfNodes(nodes)
+	if err != nil {
+		return fmt.Errorf("failed to get node IDs: %w", err)
+	}
+
+	idsPlaceholders := strings.TrimRight(strings.Repeat("?,", len(ids)), ",")
+	query := strings.Replace(sqlMarkTakenNodes, "123", idsPlaceholders, 1)
+	args := append([]interface{}{takenLast}, stringsToAny(ids)...)
+
+	_, err = db.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("failed to mark taken nodes: %w", err)
+	}
 	return nil
 }
 
@@ -245,10 +273,39 @@ func (db *DBSQLite) TakeCandidates(ctx context.Context, limit uint) ([]*enode.No
 	return nodes, nil
 }
 
+func nodeID(node *enode.Node) (string, error) {
+	nodeURL, err := url.Parse(node.URLv4())
+	if err != nil {
+		return "", fmt.Errorf("failed to parse node URL: %w", err)
+	}
+	id := nodeURL.User.Username()
+	return id, nil
+}
+
 type noSignatureIDScheme struct {
 	enode.V4ID
 }
 
 func (noSignatureIDScheme) Verify(_ *enr.Record, _ []byte) error {
 	return nil
+}
+
+func stringsToAny(strValues []string) []interface{} {
+	values := make([]interface{}, 0, len(strValues))
+	for _, value := range strValues {
+		values = append(values, value)
+	}
+	return values
+}
+
+func idsOfNodes(nodes []*enode.Node) ([]string, error) {
+	ids := make([]string, 0, len(nodes))
+	for _, node := range nodes {
+		id, err := nodeID(node)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }
