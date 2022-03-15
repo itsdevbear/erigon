@@ -167,7 +167,7 @@ func (db *DBSQLite) FindCandidates(ctx context.Context, limit uint) ([]*enode.No
 
 		rec := new(enr.Record)
 
-		nodeWithPubkey, err := enode.Parse(enode.ValidSchemes, "enode://" + id)
+		nodeWithPubkey, err := enode.ParseV4("enode://" + id)
 		if err != nil {
 			return nil, fmt.Errorf("FindCandidates failed to decode a public key: %w", err)
 		}
@@ -200,7 +200,8 @@ func (db *DBSQLite) FindCandidates(ctx context.Context, limit uint) ([]*enode.No
 			rec.Set(enr.TCP6(ipV6PortRLPx.Int32))
 		}
 
-		node, err := enode.New(enode.ValidSchemes, rec)
+		rec.Set(enr.ID("unsigned"))
+		node, err := enode.New(enr.SchemeMap{"unsigned": noSignatureIDScheme{}}, rec)
 		if err != nil {
 			return nil, fmt.Errorf("FindCandidates failed to make a node: %w", err)
 		}
@@ -242,4 +243,12 @@ func (db *DBSQLite) TakeCandidates(ctx context.Context, limit uint) ([]*enode.No
 		return nil, fmt.Errorf("TakeCandidates failed to commit transaction: %w", err)
 	}
 	return nodes, nil
+}
+
+type noSignatureIDScheme struct {
+	enode.V4ID
+}
+
+func (noSignatureIDScheme) Verify(_ *enr.Record, _ []byte) error {
+	return nil
 }
