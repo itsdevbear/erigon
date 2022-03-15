@@ -13,4 +13,6 @@ type DB interface {
 
 	// TakeCandidates runs FindCandidates + MarkTakenNodes in a transaction.
 	TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) ([]*enode.Node, error)
+
+	IsConflictError(err error) bool
 }

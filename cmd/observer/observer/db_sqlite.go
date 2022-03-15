@@ -279,6 +279,13 @@ func (db *DBSQLite) TakeCandidates(ctx context.Context, minUnusedDuration time.D
 	return nodes, nil
 }
 
+func (db *DBSQLite) IsConflictError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "SQLITE_BUSY")
+}
+
 func nodeID(node *enode.Node) (string, error) {
 	nodeURL, err := url.Parse(node.URLv4())
 	if err != nil {

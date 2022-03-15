@@ -13,7 +13,7 @@ import (
 
 type Crawler struct {
 	transport  DiscV4Transport
-	db         DB
+	db         DBRetrier
 	bootnodes  []*enode.Node
 	forkFilter forkid.Filter
 	log        log.Logger
@@ -36,7 +36,7 @@ func NewCrawler(
 
 	instance := Crawler{
 		transport,
-		db,
+		NewDBRetrier(db, logger),
 		bootnodes,
 		forkFilter,
 		logger,

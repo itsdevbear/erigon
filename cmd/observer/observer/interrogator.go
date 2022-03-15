@@ -94,6 +94,7 @@ func valuesOfIDToNodeMap(m map[enode.ID]*enode.Node) []*enode.Node {
 }
 
 func sleep(parentContext context.Context, timeout time.Duration) {
+	if timeout <= 0 { return }
 	ctx, cancel := context.WithTimeout(parentContext, timeout)
 	defer cancel()
 	<-ctx.Done()
