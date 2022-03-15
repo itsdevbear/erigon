@@ -51,6 +51,7 @@ func (crawler *Crawler) startSelectCandidates(ctx context.Context) <-chan *enode
 		if (err != nil) && !errors.Is(err, context.Canceled) {
 			crawler.log.Error("Failed to select candidates", "err", err)
 		}
+		close(nodes)
 	}()
 	return nodes
 }
