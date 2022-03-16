@@ -17,7 +17,7 @@ func NewDBRetrier(db DB, logger log.Logger) DBRetrier {
 	return DBRetrier{db, logger}
 }
 
-const retryCount = 16
+const retryCount = 32
 
 func retryBackoffTime(attempt int) time.Duration {
 	if attempt <= 0 { return 0 }
@@ -35,7 +35,7 @@ func (db DBRetrier) UpsertNode(ctx context.Context, node *enode.Node) error {
 	var err error
 	for i := 0; i <= retryCount; i += 1 {
 		if i > 0 {
-			db.log.Debug("retrying UpsertNode", "attempt", i, "err", err)
+			db.log.Trace("retrying UpsertNode", "attempt", i, "err", err)
 		}
 		sleep(ctx, retryBackoffTime(i))
 		err = db.db.UpsertNode(ctx, node)
@@ -51,7 +51,7 @@ func (db DBRetrier) TakeCandidates(ctx context.Context, minUnusedDuration time.D
 	var err error
 	for i := 0; i <= retryCount; i += 1 {
 		if i > 0 {
-			db.log.Debug("retrying TakeCandidates", "attempt", i, "err", err)
+			db.log.Trace("retrying TakeCandidates", "attempt", i, "err", err)
 		}
 		sleep(ctx, retryBackoffTime(i))
 		result, err = db.db.TakeCandidates(ctx, minUnusedDuration, limit)

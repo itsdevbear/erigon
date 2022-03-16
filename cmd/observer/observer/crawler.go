@@ -125,7 +125,7 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 				return
 			}
 
-			logger.Debug(fmt.Sprintf("Got %d peers", len(peers)))
+			logger.Info(fmt.Sprintf("Got %d peers", len(peers)))
 			for _, peer := range peers {
 				err = crawler.db.UpsertNode(ctx, peer)
 				if err != nil {

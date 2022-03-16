@@ -36,7 +36,7 @@ func NewInterrogator(node *enode.Node, transport DiscV4Transport, forkFilter for
 }
 
 func (interrogator *Interrogator) Run(ctx context.Context) ([]*enode.Node, error) {
-	interrogator.log.Debug("Interrogating a node")
+	interrogator.log.Info("Interrogating a node")
 
 	err := interrogator.transport.Ping(interrogator.node)
 	if err != nil {
@@ -65,7 +65,7 @@ func (interrogator *Interrogator) Run(ctx context.Context) ([]*enode.Node, error
 	}
 
 	keys := keygen(ctx, interrogator.node.Pubkey(), 10*time.Second, interrogator.log)
-	interrogator.log.Debug(fmt.Sprintf("Generated %d keys", len(keys)))
+	interrogator.log.Trace(fmt.Sprintf("Generated %d keys", len(keys)))
 
 	peersByID := make(map[enode.ID]*enode.Node)
 	for _, key := range keys {
