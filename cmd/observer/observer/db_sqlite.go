@@ -21,6 +21,8 @@ type DBSQLite struct {
 // language=SQL
 const (
 	sqlCreateSchema = `
+PRAGMA journal_mode = WAL;
+
 CREATE TABLE IF NOT EXISTS nodes (
     id TEXT PRIMARY KEY,
     ip TEXT,
