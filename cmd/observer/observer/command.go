@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/urfave/cli"
 	"runtime"
+	"time"
 )
 
 type CommandFlags struct {
@@ -19,6 +20,7 @@ type CommandFlags struct {
 	NodeKeyHex         string
 	Bootnodes          string
 	CrawlerConcurrency uint
+	RefreshTimeout	   time.Duration
 }
 
 type Command struct {
@@ -51,6 +53,7 @@ func NewCommand() *Command {
 	instance.withNodeKeyHex()
 	instance.withBootnodes()
 	instance.withCrawlerConcurrency()
+	instance.withRefreshTimeout()
 
 	return &instance
 }
@@ -103,6 +106,15 @@ func (command *Command) withCrawlerConcurrency() {
 		Value: uint(runtime.GOMAXPROCS(0)) * 10,
 	}
 	command.command.Flags().UintVar(&command.flags.CrawlerConcurrency, flag.Name, flag.Value, flag.Usage)
+}
+
+func (command *Command) withRefreshTimeout() {
+	flag := cli.DurationFlag{
+		Name:  "refresh-timeout",
+		Usage: "A timeout to wait before considering to re-crawl a node",
+		Value: 10 * time.Minute,
+	}
+	command.command.Flags().DurationVar(&command.flags.RefreshTimeout, flag.Name, flag.Value, flag.Usage)
 }
 
 func (command *Command) ExecuteContext(ctx context.Context, runFunc func(ctx context.Context, flags CommandFlags) error) error {

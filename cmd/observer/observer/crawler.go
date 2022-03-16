@@ -13,22 +13,27 @@ import (
 )
 
 type Crawler struct {
-	transport        DiscV4Transport
-	db               DBRetrier
-	bootnodes        []*enode.Node
-	forkFilter       forkid.Filter
-	concurrencyLimit uint
-	log              log.Logger
+	transport  DiscV4Transport
+	db         DBRetrier
+	config     CrawlerConfig
+	forkFilter forkid.Filter
+	log        log.Logger
+}
+
+type CrawlerConfig struct {
+	Chain            string
+	Bootnodes        []*enode.Node
+	ConcurrencyLimit uint
+	RefreshTimeout   time.Duration
 }
 
 func NewCrawler(
 	transport DiscV4Transport,
 	db DB,
-	bootnodes []*enode.Node,
-	chain string,
-	concurrencyLimit uint,
+	config CrawlerConfig,
 	logger log.Logger,
 ) (*Crawler, error) {
+	chain := config.Chain
 	chainConfig := params.ChainConfigByChainName(chain)
 	genesisHash := params.GenesisHashByChainName(chain)
 	if (chainConfig == nil) || (genesisHash == nil) {
@@ -40,9 +45,8 @@ func NewCrawler(
 	instance := Crawler{
 		transport,
 		NewDBRetrier(db, logger),
-		bootnodes,
+		config,
 		forkFilter,
-		concurrencyLimit,
 		logger,
 	}
 	return &instance, nil
@@ -61,7 +65,7 @@ func (crawler *Crawler) startSelectCandidates(ctx context.Context) <-chan *enode
 }
 
 func (crawler *Crawler) selectCandidates(ctx context.Context, nodes chan<- *enode.Node) error {
-	for _, node := range crawler.bootnodes {
+	for _, node := range crawler.config.Bootnodes {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -70,9 +74,9 @@ func (crawler *Crawler) selectCandidates(ctx context.Context, nodes chan<- *enod
 	}
 
 	for ctx.Err() == nil {
-		reselectPeriod := 10*time.Minute
-		limit := crawler.concurrencyLimit
-		candidates, err := crawler.db.TakeCandidates(ctx, reselectPeriod, limit)
+		refreshTimeout := crawler.config.RefreshTimeout
+		limit := crawler.config.ConcurrencyLimit
+		candidates, err := crawler.db.TakeCandidates(ctx, refreshTimeout, limit)
 		if err != nil {
 			return err
 		}
@@ -95,7 +99,7 @@ func (crawler *Crawler) selectCandidates(ctx context.Context, nodes chan<- *enod
 
 func (crawler *Crawler) Run(ctx context.Context) error {
 	nodes := crawler.startSelectCandidates(ctx)
-	sem := semaphore.NewWeighted(int64(crawler.concurrencyLimit))
+	sem := semaphore.NewWeighted(int64(crawler.config.ConcurrencyLimit))
 
 	for node := range nodes {
 		if err := sem.Acquire(ctx, 1); err != nil {

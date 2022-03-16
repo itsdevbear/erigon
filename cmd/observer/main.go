@@ -25,13 +25,14 @@ func mainWithFlags(ctx context.Context, flags observer.CommandFlags) error {
 		return err
 	}
 
-	crawler, err := observer.NewCrawler(
-		discV4,
-		db,
-		server.Bootnodes(),
+	crawlerConfig := observer.CrawlerConfig{
 		flags.Chain,
+		server.Bootnodes(),
 		flags.CrawlerConcurrency,
-		log.Root())
+		flags.RefreshTimeout,
+	}
+
+	crawler, err := observer.NewCrawler(discV4, db, crawlerConfig, log.Root())
 	if err != nil {
 		return err
 	}
