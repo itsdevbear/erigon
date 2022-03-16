@@ -94,7 +94,7 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 	nodes := crawler.startSelectCandidates(ctx)
 
 	for node := range nodes {
-		nodeDesc := node.String()
+		nodeDesc := node.URLv4()
 		logger := crawler.log.New("node", nodeDesc)
 
 		interrogator, err := NewInterrogator(node, crawler.transport, crawler.forkFilter, logger)
