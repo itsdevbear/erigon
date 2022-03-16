@@ -112,28 +112,28 @@ func (db *DBSQLite) UpsertNode(ctx context.Context, node *enode.Node) error {
 
 	var portDisc *int
 	var portDiscEntry enr.UDP
-	if node.Load(&portDiscEntry) == nil {
+	if (ip != nil) && (node.Load(&portDiscEntry) == nil) {
 		value := int(portDiscEntry)
 		portDisc = &value
 	}
 
 	var ipV6PortDisc *int
 	var ipV6PortDiscEntry enr.UDP6
-	if node.Load(&ipV6PortDiscEntry) == nil {
+	if (ipV6 != nil) && (node.Load(&ipV6PortDiscEntry) == nil) {
 		value := int(ipV6PortDiscEntry)
 		ipV6PortDisc = &value
 	}
 
 	var portRLPx *int
 	var portRLPxEntry enr.TCP
-	if node.Load(&portRLPxEntry) == nil {
+	if (ip != nil) && (node.Load(&portRLPxEntry) == nil) {
 		value := int(portRLPxEntry)
 		portRLPx = &value
 	}
 
 	var ipV6PortRLPx *int
 	var ipV6PortRLPxEntry enr.TCP
-	if node.Load(&ipV6PortRLPxEntry) == nil {
+	if (ipV6 != nil) && (node.Load(&ipV6PortRLPxEntry) == nil) {
 		value := int(ipV6PortRLPxEntry)
 		ipV6PortRLPx = &value
 	}
