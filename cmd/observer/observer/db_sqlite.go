@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS nodes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_nodes_taken_last ON nodes (taken_last);
+CREATE INDEX IF NOT EXISTS idx_nodes_ip ON nodes (ip);
+CREATE INDEX IF NOT EXISTS idx_nodes_ip_v6 ON nodes (ip_v6);
 `
 
 	sqlUpsertNode = `
