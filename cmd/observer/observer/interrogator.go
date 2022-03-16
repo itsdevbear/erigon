@@ -43,16 +43,17 @@ func (interrogator *Interrogator) Run(ctx context.Context) ([]*enode.Node, error
 		return nil, fmt.Errorf("ping-pong failed: %w", err)
 	}
 
+	// request ENR
+	var forkID *forkid.ID
 	enr, err := interrogator.transport.RequestENR(interrogator.node)
 	if err != nil {
-		return nil, fmt.Errorf("ENR request failed: %w", err)
-	}
-
-	interrogator.log.Debug("Got ENR", "enr", enr)
-
-	forkID, err := eth.LoadENRForkID(interrogator.node.Record())
-	if err != nil {
-		return nil, err
+		interrogator.log.Debug("ENR request failed", "err", err)
+	} else {
+		interrogator.log.Debug("Got ENR", "enr", enr)
+		forkID, err = eth.LoadENRForkID(enr.Record())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// filter by fork ID
