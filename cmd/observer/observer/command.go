@@ -5,17 +5,20 @@ import (
 	"github.com/ledgerwatch/erigon/cmd/utils"
 	"github.com/ledgerwatch/erigon/internal/debug"
 	"github.com/spf13/cobra"
+	"github.com/urfave/cli"
+	"runtime"
 )
 
 type CommandFlags struct {
-	DataDir     string
-	Chain       string
-	ListenPort  int
-	NATDesc     string
-	NetRestrict string
-	NodeKeyFile string
-	NodeKeyHex  string
-	Bootnodes   string
+	DataDir            string
+	Chain              string
+	ListenPort         int
+	NATDesc            string
+	NetRestrict        string
+	NodeKeyFile        string
+	NodeKeyHex         string
+	Bootnodes          string
+	CrawlerConcurrency uint
 }
 
 type Command struct {
@@ -47,6 +50,7 @@ func NewCommand() *Command {
 	instance.withNodeKeyFile()
 	instance.withNodeKeyHex()
 	instance.withBootnodes()
+	instance.withCrawlerConcurrency()
 
 	return &instance
 }
@@ -90,6 +94,15 @@ func (command *Command) withNodeKeyHex() {
 func (command *Command) withBootnodes() {
 	flag := utils.BootnodesFlag
 	command.command.Flags().StringVar(&command.flags.Bootnodes, flag.Name, flag.Value, flag.Usage)
+}
+
+func (command *Command) withCrawlerConcurrency() {
+	flag := cli.UintFlag{
+		Name:  "crawler-concurrency",
+		Usage: "A number of maximum parallel node interrogations",
+		Value: uint(runtime.GOMAXPROCS(0)) * 10,
+	}
+	command.command.Flags().UintVar(&command.flags.CrawlerConcurrency, flag.Name, flag.Value, flag.Usage)
 }
 
 func (command *Command) ExecuteContext(ctx context.Context, runFunc func(ctx context.Context, flags CommandFlags) error) error {

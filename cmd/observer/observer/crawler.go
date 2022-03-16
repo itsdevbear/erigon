@@ -8,15 +8,17 @@ import (
 	"github.com/ledgerwatch/erigon/p2p/enode"
 	"github.com/ledgerwatch/erigon/params"
 	"github.com/ledgerwatch/log/v3"
+	"golang.org/x/sync/semaphore"
 	"time"
 )
 
 type Crawler struct {
-	transport  DiscV4Transport
-	db         DBRetrier
-	bootnodes  []*enode.Node
-	forkFilter forkid.Filter
-	log        log.Logger
+	transport        DiscV4Transport
+	db               DBRetrier
+	bootnodes        []*enode.Node
+	forkFilter       forkid.Filter
+	concurrencyLimit uint
+	log              log.Logger
 }
 
 func NewCrawler(
@@ -24,6 +26,7 @@ func NewCrawler(
 	db DB,
 	bootnodes []*enode.Node,
 	chain string,
+	concurrencyLimit uint,
 	logger log.Logger,
 ) (*Crawler, error) {
 	chainConfig := params.ChainConfigByChainName(chain)
@@ -39,6 +42,7 @@ func NewCrawler(
 		NewDBRetrier(db, logger),
 		bootnodes,
 		forkFilter,
+		concurrencyLimit,
 		logger,
 	}
 	return &instance, nil
@@ -67,8 +71,7 @@ func (crawler *Crawler) selectCandidates(ctx context.Context, nodes chan<- *enod
 
 	for ctx.Err() == nil {
 		reselectPeriod := 10*time.Minute
-		// TODO: limit ?
-		limit := uint(2)
+		limit := crawler.concurrencyLimit
 		candidates, err := crawler.db.TakeCandidates(ctx, reselectPeriod, limit)
 		if err != nil {
 			return err
@@ -92,8 +95,17 @@ func (crawler *Crawler) selectCandidates(ctx context.Context, nodes chan<- *enod
 
 func (crawler *Crawler) Run(ctx context.Context) error {
 	nodes := crawler.startSelectCandidates(ctx)
+	sem := semaphore.NewWeighted(int64(crawler.concurrencyLimit))
 
 	for node := range nodes {
+		if err := sem.Acquire(ctx, 1); err != nil {
+			if !errors.Is(err, context.Canceled) {
+				return fmt.Errorf("failed to acquire semaphore: %w", err)
+			} else {
+				break
+			}
+		}
+
 		nodeDesc := node.URLv4()
 		logger := crawler.log.New("node", nodeDesc)
 
@@ -103,9 +115,13 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 		}
 
 		go func() {
+			defer sem.Release(1)
+
 			peers, err := interrogator.Run(ctx)
 			if err != nil {
-				logger.Warn("Failed to interrogate node", "err", err)
+				if !errors.Is(err, context.Canceled) {
+					logger.Warn("Failed to interrogate node", "err", err)
+				}
 				return
 			}
 
@@ -113,7 +129,9 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 			for _, peer := range peers {
 				err = crawler.db.UpsertNode(ctx, peer)
 				if err != nil {
-					logger.Error("Failed to save node", "err", err)
+					if !errors.Is(err, context.Canceled) {
+						logger.Error("Failed to save node", "err", err)
+					}
 					break
 				}
 			}
