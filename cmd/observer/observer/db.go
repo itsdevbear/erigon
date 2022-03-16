@@ -15,4 +15,7 @@ type DB interface {
 	TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) ([]*enode.Node, error)
 
 	IsConflictError(err error) bool
+
+	CountNodes(ctx context.Context) (uint, error)
+	CountIPs(ctx context.Context) (uint, error)
 }

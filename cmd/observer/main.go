@@ -25,6 +25,8 @@ func mainWithFlags(ctx context.Context, flags observer.CommandFlags) error {
 		return err
 	}
 
+	go observer.StatusLoggerLoop(ctx, db, log.Root())
+
 	crawlerConfig := observer.CrawlerConfig{
 		flags.Chain,
 		server.Bootnodes(),

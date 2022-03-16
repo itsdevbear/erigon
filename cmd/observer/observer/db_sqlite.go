@@ -72,6 +72,14 @@ LIMIT ?
 	sqlMarkTakenNodes = `
 UPDATE nodes SET taken_last = ? WHERE id IN (123)
 `
+
+	sqlCountNodes = `
+SELECT COUNT(id) FROM nodes
+`
+
+	sqlCountIPs = `
+SELECT COUNT(DISTINCT ip) FROM nodes
+`
 )
 
 func NewDBSQLite(filePath string) (*DBSQLite, error) {
@@ -288,6 +296,24 @@ func (db *DBSQLite) IsConflictError(err error) bool {
 		return false
 	}
 	return strings.Contains(err.Error(), "SQLITE_BUSY")
+}
+
+func (db *DBSQLite) CountNodes(ctx context.Context) (uint, error) {
+	row := db.db.QueryRowContext(ctx, sqlCountNodes)
+	var count uint
+	if err := row.Scan(&count); err != nil {
+		return 0, fmt.Errorf("CountNodes failed: %w", err)
+	}
+	return count, nil
+}
+
+func (db *DBSQLite) CountIPs(ctx context.Context) (uint, error) {
+	row := db.db.QueryRowContext(ctx, sqlCountIPs)
+	var count uint
+	if err := row.Scan(&count); err != nil {
+		return 0, fmt.Errorf("CountIPs failed: %w", err)
+	}
+	return count, nil
 }
 
 func nodeID(node *enode.Node) (string, error) {
