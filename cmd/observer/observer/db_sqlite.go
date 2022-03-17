@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS nodes (
     ip_v6 TEXT,
     ip_v6_port_disc INTEGER,
     ip_v6_port_rlpx INTEGER,
+    compat_fork INTEGER,
     taken_last INTEGER,
     updated INTEGER NOT NULL
 );
@@ -38,6 +39,7 @@ CREATE TABLE IF NOT EXISTS nodes (
 CREATE INDEX IF NOT EXISTS idx_nodes_taken_last ON nodes (taken_last);
 CREATE INDEX IF NOT EXISTS idx_nodes_ip ON nodes (ip);
 CREATE INDEX IF NOT EXISTS idx_nodes_ip_v6 ON nodes (ip_v6);
+CREATE INDEX IF NOT EXISTS idx_nodes_compat_fork ON nodes (compat_fork);
 `
 
 	sqlUpsertNode = `
@@ -49,9 +51,10 @@ INSERT INTO nodes(
     ip_v6,
     ip_v6_port_disc,
     ip_v6_port_rlpx,
+	compat_fork,
     taken_last,
     updated
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
     ip = excluded.ip,
     port_disc = excluded.port_disc,
@@ -62,9 +65,14 @@ ON CONFLICT(id) DO UPDATE SET
     updated = excluded.updated
 `
 
+	sqlUpdateForkCompatibility = `
+UPDATE nodes SET compat_fork = ? WHERE id = ?
+`
+
 	sqlFindCandidates = `
 SELECT * FROM nodes
-WHERE (taken_last IS NULL) OR (taken_last < ?)
+WHERE ((taken_last IS NULL) OR (taken_last < ?))
+	AND ((compat_fork == TRUE) OR (compat_fork IS NULL))
 ORDER BY taken_last
 LIMIT ?
 `
@@ -98,12 +106,9 @@ func NewDBSQLite(filePath string) (*DBSQLite, error) {
 }
 
 func (db *DBSQLite) UpsertNode(ctx context.Context, node *enode.Node) error {
-	if node.Incomplete() {
-		return errors.New("UpsertNode can't save incomplete nodes")
-	}
 	id, err := nodeID(node)
 	if err != nil {
-		return fmt.Errorf("failed to get node ID: %w", err)
+		return fmt.Errorf("UpsertNode failed to get node ID: %w", err)
 	}
 
 	var ip *string
@@ -148,6 +153,7 @@ func (db *DBSQLite) UpsertNode(ctx context.Context, node *enode.Node) error {
 		ipV6PortRLPx = &value
 	}
 
+	var isCompatFork *bool
 	var takenLast *int
 	updated := time.Now().Unix()
 
@@ -155,10 +161,24 @@ func (db *DBSQLite) UpsertNode(ctx context.Context, node *enode.Node) error {
 		id,
 		ip, portDisc, portRLPx,
 		ipV6, ipV6PortDisc, ipV6PortRLPx,
+		isCompatFork,
 		takenLast,
 		updated)
 	if err != nil {
 		return fmt.Errorf("failed to upsert a node: %w", err)
+	}
+	return nil
+}
+
+func (db *DBSQLite) UpdateForkCompatibility(ctx context.Context, node *enode.Node, isCompatFork bool) error {
+	id, err := nodeID(node)
+	if err != nil {
+		return fmt.Errorf("UpdateForkCompatibility failed to get node ID: %w", err)
+	}
+
+	_, err = db.db.ExecContext(ctx, sqlUpdateForkCompatibility, isCompatFork, id)
+	if err != nil {
+		return fmt.Errorf("UpdateForkCompatibility failed to update a node: %w", err)
 	}
 	return nil
 }
@@ -182,12 +202,14 @@ func (db *DBSQLite) FindCandidates(ctx context.Context, minUnusedDuration time.D
 		var ipV6 sql.NullString
 		var ipV6PortDisc sql.NullInt32
 		var ipV6PortRLPx sql.NullInt32
+		var isCompatFork sql.NullBool
 		var takenLastTimestamp sql.NullInt64
 		var updatedTimestamp int
 
 		err := cursor.Scan(&id,
 			&ip, &portDisc, &portRLPx,
 			&ipV6, &ipV6PortDisc, &ipV6PortRLPx,
+			&isCompatFork,
 			&takenLastTimestamp,
 			&updatedTimestamp)
 		if err != nil {
@@ -317,6 +339,9 @@ func (db *DBSQLite) CountIPs(ctx context.Context) (uint, error) {
 }
 
 func nodeID(node *enode.Node) (string, error) {
+	if node.Incomplete() {
+		return "", errors.New("nodeID not implemented for incomplete nodes")
+	}
 	nodeURL, err := url.Parse(node.URLv4())
 	if err != nil {
 		return "", fmt.Errorf("failed to parse node URL: %w", err)

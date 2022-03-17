@@ -39,7 +39,22 @@ func (db DBRetrier) UpsertNode(ctx context.Context, node *enode.Node) error {
 		}
 		sleep(ctx, retryBackoffTime(i))
 		err = db.db.UpsertNode(ctx, node)
-		if !db.db.IsConflictError(err) {
+		if (err == nil) || !db.db.IsConflictError(err) {
+			break
+		}
+	}
+	return err
+}
+
+func (db DBRetrier) UpdateForkCompatibility(ctx context.Context, node *enode.Node, isCompatFork bool) error {
+	var err error
+	for i := 0; i <= retryCount; i += 1 {
+		if i > 0 {
+			db.log.Trace("retrying UpdateForkCompatibility", "attempt", i, "err", err)
+		}
+		sleep(ctx, retryBackoffTime(i))
+		err = db.db.UpdateForkCompatibility(ctx, node, isCompatFork)
+		if (err == nil) || !db.db.IsConflictError(err) {
 			break
 		}
 	}
@@ -55,7 +70,7 @@ func (db DBRetrier) TakeCandidates(ctx context.Context, minUnusedDuration time.D
 		}
 		sleep(ctx, retryBackoffTime(i))
 		result, err = db.db.TakeCandidates(ctx, minUnusedDuration, limit)
-		if !db.db.IsConflictError(err) {
+		if (err == nil) || !db.db.IsConflictError(err) {
 			break
 		}
 	}

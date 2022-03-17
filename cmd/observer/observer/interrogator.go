@@ -25,6 +25,12 @@ type Interrogator struct {
 	log        log.Logger
 }
 
+type InterrogationResult struct {
+	Node         *enode.Node
+	IsCompatFork *bool
+	Peers        []*enode.Node
+}
+
 func NewInterrogator(node *enode.Node, transport DiscV4Transport, forkFilter forkid.Filter, logger log.Logger) (*Interrogator, error) {
 	instance := Interrogator{
 		node,
@@ -35,7 +41,7 @@ func NewInterrogator(node *enode.Node, transport DiscV4Transport, forkFilter for
 	return &instance, nil
 }
 
-func (interrogator *Interrogator) Run(ctx context.Context) ([]*enode.Node, error) {
+func (interrogator *Interrogator) Run(ctx context.Context) (*InterrogationResult, error) {
 	interrogator.log.Info("Interrogating a node")
 
 	err := interrogator.transport.Ping(interrogator.node)
@@ -57,10 +63,14 @@ func (interrogator *Interrogator) Run(ctx context.Context) ([]*enode.Node, error
 	}
 
 	// filter by fork ID
+	var isCompatFork *bool
 	if forkID != nil {
 		err := interrogator.forkFilter(*forkID)
-		if errors.Is(err, forkid.ErrLocalIncompatibleOrStale) {
-			return nil, fmt.Errorf("incompatible ENR fork ID %w", err)
+		isCompatFork = new(bool)
+		*isCompatFork = (err == nil) || !errors.Is(err, forkid.ErrLocalIncompatibleOrStale)
+		if !*isCompatFork {
+			result := InterrogationResult{interrogator.node, isCompatFork, nil}
+			return &result, fmt.Errorf("incompatible ENR fork ID %w", err)
 		}
 	}
 
@@ -83,7 +93,8 @@ func (interrogator *Interrogator) Run(ctx context.Context) ([]*enode.Node, error
 
 	peers := valuesOfIDToNodeMap(peersByID)
 
-	return peers, nil
+	result := InterrogationResult{interrogator.node, isCompatFork, peers}
+	return &result, nil
 }
 
 func valuesOfIDToNodeMap(m map[enode.ID]*enode.Node) []*enode.Node {

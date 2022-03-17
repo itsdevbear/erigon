@@ -8,6 +8,8 @@ import (
 
 type DB interface {
 	UpsertNode(ctx context.Context, node *enode.Node) error
+	UpdateForkCompatibility(ctx context.Context, node *enode.Node, isCompatFork bool) error
+
 	FindCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) ([]*enode.Node, error)
 	MarkTakenNodes(ctx context.Context, nodes []*enode.Node) error
 

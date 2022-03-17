@@ -121,7 +121,18 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 		go func() {
 			defer sem.Release(1)
 
-			peers, err := interrogator.Run(ctx)
+			result, err := interrogator.Run(ctx)
+
+			if (result != nil) && (result.IsCompatFork != nil) {
+				dbErr := crawler.db.UpdateForkCompatibility(ctx, result.Node, *result.IsCompatFork)
+				if dbErr != nil {
+					if !errors.Is(dbErr, context.Canceled) {
+						logger.Error("Failed to update fork compatibility", "err", dbErr)
+					}
+					return
+				}
+			}
+
 			if err != nil {
 				if !errors.Is(err, context.Canceled) {
 					logger.Warn("Failed to interrogate node", "err", err)
@@ -129,7 +140,9 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 				return
 			}
 
+			peers := result.Peers
 			logger.Info(fmt.Sprintf("Got %d peers", len(peers)))
+
 			for _, peer := range peers {
 				err = crawler.db.UpsertNode(ctx, peer)
 				if err != nil {
