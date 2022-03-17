@@ -135,7 +135,11 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 
 			if err != nil {
 				if !errors.Is(err, context.Canceled) {
-					logger.Warn("Failed to interrogate node", "err", err)
+					logFunc := logger.Warn
+					if (result != nil) && (result.IsCompatFork != nil) && !*result.IsCompatFork {
+						logFunc = logger.Debug
+					}
+					logFunc("Failed to interrogate node", "err", err)
 				}
 				return
 			}
