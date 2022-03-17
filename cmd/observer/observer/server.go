@@ -7,11 +7,15 @@ import (
 	"fmt"
 	"github.com/ledgerwatch/erigon/cmd/utils"
 	"github.com/ledgerwatch/erigon/common/debug"
+	"github.com/ledgerwatch/erigon/core/forkid"
+	"github.com/ledgerwatch/erigon/eth/protocols/eth"
 	"github.com/ledgerwatch/erigon/p2p"
 	"github.com/ledgerwatch/erigon/p2p/discover"
 	"github.com/ledgerwatch/erigon/p2p/enode"
+	"github.com/ledgerwatch/erigon/p2p/enr"
 	"github.com/ledgerwatch/erigon/p2p/nat"
 	"github.com/ledgerwatch/erigon/p2p/netutil"
+	"github.com/ledgerwatch/erigon/params"
 	"github.com/ledgerwatch/log/v3"
 	"net"
 	"path/filepath"
@@ -36,7 +40,7 @@ func NewServer(flags CommandFlags) (*Server, error) {
 		return nil, err
 	}
 
-	localNode, err := makeLocalNode(nodeDBPath, privateKey)
+	localNode, err := makeLocalNode(nodeDBPath, privateKey, flags.Chain)
 	if err != nil {
 		return nil, err
 	}
@@ -80,14 +84,32 @@ func NewServer(flags CommandFlags) (*Server, error) {
 	return &instance, nil
 }
 
-func makeLocalNode(nodeDBPath string, privateKey *ecdsa.PrivateKey) (*enode.LocalNode, error) {
+func makeLocalNode(nodeDBPath string, privateKey *ecdsa.PrivateKey, chain string) (*enode.LocalNode, error) {
 	db, err := enode.OpenDB(nodeDBPath)
 	if err != nil {
 		return nil, err
 	}
 	localNode := enode.NewLocalNode(db, privateKey)
 	localNode.SetFallbackIP(net.IP{127, 0, 0, 1})
+
+	forksEntry, err := makeForksENREntry(chain)
+	if err != nil {
+		return nil, err
+	}
+	localNode.Set(forksEntry)
+
 	return localNode, nil
+}
+
+func makeForksENREntry(chain string) (enr.Entry, error) {
+	chainConfig := params.ChainConfigByChainName(chain)
+	genesisHash := params.GenesisHashByChainName(chain)
+	if (chainConfig == nil) || (genesisHash == nil) {
+		return nil, fmt.Errorf("unknown chain %s", chain)
+	}
+
+	forks := forkid.GatherForks(chainConfig)
+	return eth.CurrentENREntryFromForks(forks, *genesisHash, 0), nil
 }
 
 func (server *Server) Bootnodes() []*enode.Node {
