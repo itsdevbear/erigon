@@ -22,6 +22,7 @@ type Interrogator struct {
 	node       *enode.Node
 	transport  DiscV4Transport
 	forkFilter forkid.Filter
+	privateKey *ecdsa.PrivateKey
 	log        log.Logger
 }
 
@@ -29,13 +30,15 @@ type InterrogationResult struct {
 	Node         *enode.Node
 	IsCompatFork *bool
 	Peers        []*enode.Node
+	ClientID     *string
 }
 
-func NewInterrogator(node *enode.Node, transport DiscV4Transport, forkFilter forkid.Filter, logger log.Logger) (*Interrogator, error) {
+func NewInterrogator(node *enode.Node, transport DiscV4Transport, forkFilter forkid.Filter, privateKey *ecdsa.PrivateKey, logger log.Logger) (*Interrogator, error) {
 	instance := Interrogator{
 		node,
 		transport,
 		forkFilter,
+		privateKey,
 		logger,
 	}
 	return &instance, nil
@@ -69,7 +72,7 @@ func (interrogator *Interrogator) Run(ctx context.Context) (*InterrogationResult
 		isCompatFork = new(bool)
 		*isCompatFork = (err == nil) || !errors.Is(err, forkid.ErrLocalIncompatibleOrStale)
 		if !*isCompatFork {
-			result := InterrogationResult{interrogator.node, isCompatFork, nil}
+			result := InterrogationResult{interrogator.node, isCompatFork, nil, nil}
 			return &result, fmt.Errorf("incompatible ENR fork ID %w", err)
 		}
 	}
@@ -93,7 +96,18 @@ func (interrogator *Interrogator) Run(ctx context.Context) (*InterrogationResult
 
 	peers := valuesOfIDToNodeMap(peersByID)
 
-	result := InterrogationResult{interrogator.node, isCompatFork, peers}
+	// request client ID
+	var clientID *string
+	hello, err := Handshake(ctx, interrogator.node.IP(), interrogator.node.TCP(), interrogator.node.Pubkey(), interrogator.privateKey)
+	if (err != nil) && !errors.Is(err, context.Canceled) {
+		interrogator.log.Warn("Failed to obtain clientID", "err", err)
+	}
+	if hello != nil {
+		interrogator.log.Debug("Got client ID", "clientID", hello.ClientID)
+		clientID = &hello.ClientID
+	}
+
+	result := InterrogationResult{interrogator.node, isCompatFork, peers, clientID}
 	return &result, nil
 }
 

@@ -61,6 +61,21 @@ func (db DBRetrier) UpdateForkCompatibility(ctx context.Context, node *enode.Nod
 	return err
 }
 
+func (db DBRetrier) UpdateClientID(ctx context.Context, node *enode.Node, clientID string) error {
+	var err error
+	for i := 0; i <= retryCount; i += 1 {
+		if i > 0 {
+			db.log.Trace("retrying UpdateClientID", "attempt", i, "err", err)
+		}
+		sleep(ctx, retryBackoffTime(i))
+		err = db.db.UpdateClientID(ctx, node, clientID)
+		if (err == nil) || !db.db.IsConflictError(err) {
+			break
+		}
+	}
+	return err
+}
+
 func (db DBRetrier) TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) ([]*enode.Node, error) {
 	var result []*enode.Node
 	var err error

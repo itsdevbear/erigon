@@ -2,6 +2,7 @@ package observer
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"github.com/ledgerwatch/erigon/core/forkid"
@@ -23,6 +24,7 @@ type Crawler struct {
 type CrawlerConfig struct {
 	Chain            string
 	Bootnodes        []*enode.Node
+	PrivateKey       *ecdsa.PrivateKey
 	ConcurrencyLimit uint
 	RefreshTimeout   time.Duration
 }
@@ -113,7 +115,7 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 		nodeDesc := node.URLv4()
 		logger := crawler.log.New("node", nodeDesc)
 
-		interrogator, err := NewInterrogator(node, crawler.transport, crawler.forkFilter, logger)
+		interrogator, err := NewInterrogator(node, crawler.transport, crawler.forkFilter, crawler.config.PrivateKey, logger)
 		if err != nil {
 			return fmt.Errorf("failed to create Interrogator for node %s: %w", nodeDesc, err)
 		}
@@ -128,6 +130,16 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 				if dbErr != nil {
 					if !errors.Is(dbErr, context.Canceled) {
 						logger.Error("Failed to update fork compatibility", "err", dbErr)
+					}
+					return
+				}
+			}
+
+			if (result != nil) && (result.ClientID != nil) {
+				dbErr := crawler.db.UpdateClientID(ctx, result.Node, *result.ClientID)
+				if dbErr != nil {
+					if !errors.Is(dbErr, context.Canceled) {
+						logger.Error("Failed to update client ID", "err", dbErr)
 					}
 					return
 				}

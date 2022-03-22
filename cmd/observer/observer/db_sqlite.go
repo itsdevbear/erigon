@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS nodes (
     ip_v6_port_disc INTEGER,
     ip_v6_port_rlpx INTEGER,
     compat_fork INTEGER,
+    client_id TEXT,
     taken_last INTEGER,
     updated INTEGER NOT NULL
 );
@@ -52,9 +53,10 @@ INSERT INTO nodes(
     ip_v6_port_disc,
     ip_v6_port_rlpx,
 	compat_fork,
+    client_id,
     taken_last,
     updated
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
     ip = excluded.ip,
     port_disc = excluded.port_disc,
@@ -69,8 +71,20 @@ ON CONFLICT(id) DO UPDATE SET
 UPDATE nodes SET compat_fork = ? WHERE id = ?
 `
 
+	sqlUpdateClientID = `
+UPDATE nodes SET client_id = ?, updated = ? WHERE id = ?
+`
+
 	sqlFindCandidates = `
-SELECT * FROM nodes
+SELECT
+	id,
+    ip,
+    port_disc,
+    port_rlpx,
+    ip_v6,
+    ip_v6_port_disc,
+    ip_v6_port_rlpx
+FROM nodes
 WHERE ((taken_last IS NULL) OR (taken_last < ?))
 	AND ((compat_fork == TRUE) OR (compat_fork IS NULL))
 ORDER BY taken_last
@@ -154,6 +168,7 @@ func (db *DBSQLite) UpsertNode(ctx context.Context, node *enode.Node) error {
 	}
 
 	var isCompatFork *bool
+	var clientID *string
 	var takenLast *int
 	updated := time.Now().Unix()
 
@@ -162,6 +177,7 @@ func (db *DBSQLite) UpsertNode(ctx context.Context, node *enode.Node) error {
 		ip, portDisc, portRLPx,
 		ipV6, ipV6PortDisc, ipV6PortRLPx,
 		isCompatFork,
+		clientID,
 		takenLast,
 		updated)
 	if err != nil {
@@ -179,6 +195,21 @@ func (db *DBSQLite) UpdateForkCompatibility(ctx context.Context, node *enode.Nod
 	_, err = db.db.ExecContext(ctx, sqlUpdateForkCompatibility, isCompatFork, id)
 	if err != nil {
 		return fmt.Errorf("UpdateForkCompatibility failed to update a node: %w", err)
+	}
+	return nil
+}
+
+func (db *DBSQLite) UpdateClientID(ctx context.Context, node *enode.Node, clientID string) error {
+	id, err := nodeID(node)
+	if err != nil {
+		return fmt.Errorf("UpdateClientID failed to get node ID: %w", err)
+	}
+
+	updated := time.Now().Unix()
+
+	_, err = db.db.ExecContext(ctx, sqlUpdateClientID, clientID, updated, id)
+	if err != nil {
+		return fmt.Errorf("UpdateClientID failed to update a node: %w", err)
 	}
 	return nil
 }
@@ -202,16 +233,10 @@ func (db *DBSQLite) FindCandidates(ctx context.Context, minUnusedDuration time.D
 		var ipV6 sql.NullString
 		var ipV6PortDisc sql.NullInt32
 		var ipV6PortRLPx sql.NullInt32
-		var isCompatFork sql.NullBool
-		var takenLastTimestamp sql.NullInt64
-		var updatedTimestamp int
 
 		err := cursor.Scan(&id,
 			&ip, &portDisc, &portRLPx,
-			&ipV6, &ipV6PortDisc, &ipV6PortRLPx,
-			&isCompatFork,
-			&takenLastTimestamp,
-			&updatedTimestamp)
+			&ipV6, &ipV6PortDisc, &ipV6PortRLPx)
 		if err != nil {
 			return nil, fmt.Errorf("FindCandidates failed to read candidate data: %w", err)
 		}

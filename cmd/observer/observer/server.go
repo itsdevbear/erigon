@@ -116,6 +116,10 @@ func (server *Server) Bootnodes() []*enode.Node {
 	return server.discConfig.Bootnodes
 }
 
+func (server *Server) PrivateKey() *ecdsa.PrivateKey {
+	return server.discConfig.PrivateKey
+}
+
 func (server *Server) mapNATPort(ctx context.Context, realAddr *net.UDPAddr) {
 	if server.natInterface == nil {
 		return

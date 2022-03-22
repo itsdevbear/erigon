@@ -30,6 +30,7 @@ func mainWithFlags(ctx context.Context, flags observer.CommandFlags) error {
 	crawlerConfig := observer.CrawlerConfig{
 		flags.Chain,
 		server.Bootnodes(),
+		server.PrivateKey(),
 		flags.CrawlerConcurrency,
 		flags.RefreshTimeout,
 	}
