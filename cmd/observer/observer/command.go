@@ -112,7 +112,7 @@ func (command *Command) withRefreshTimeout() {
 	flag := cli.DurationFlag{
 		Name:  "refresh-timeout",
 		Usage: "A timeout to wait before considering to re-crawl a node",
-		Value: 10 * time.Minute,
+		Value: 30 * time.Minute,
 	}
 	command.command.Flags().DurationVar(&command.flags.RefreshTimeout, flag.Name, flag.Value, flag.Usage)
 }

@@ -33,7 +33,7 @@ type HelloMessage struct {
 }
 
 func Handshake(ctx context.Context, ip net.IP, rlpxPort int, pubkey *ecdsa.PublicKey, myPrivateKey *ecdsa.PrivateKey) (*HelloMessage, error) {
-	connectTimeout := 30 * time.Second
+	connectTimeout := 10 * time.Second
 	dialer := net.Dialer{
 		Timeout: connectTimeout,
 	}
