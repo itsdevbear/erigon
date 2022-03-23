@@ -78,6 +78,23 @@ func (interrogator *Interrogator) Run(ctx context.Context) (*InterrogationResult
 		}
 	}
 
+	// request client ID
+	var clientID *string
+	hello, handshakeErr := Handshake(ctx, interrogator.node.IP(), interrogator.node.TCP(), interrogator.node.Pubkey(), interrogator.privateKey)
+	if (handshakeErr != nil) && !errors.Is(handshakeErr, context.Canceled) {
+		interrogator.log.Warn("Failed to obtain clientID", "err", handshakeErr)
+	}
+	if hello != nil {
+		interrogator.log.Debug("Got client ID", "clientID", hello.ClientID)
+		clientID = &hello.ClientID
+
+		if IsClientIDBlacklisted(*clientID) {
+			isCompatFork := false
+			result := InterrogationResult{interrogator.node, &isCompatFork, nil, clientID, nil}
+			return &result, fmt.Errorf("incompatible client ID %s", *clientID)
+		}
+	}
+
 	keys := keygen(ctx, interrogator.node.Pubkey(), 10*time.Second, interrogator.log)
 	interrogator.log.Trace(fmt.Sprintf("Generated %d keys", len(keys)))
 
@@ -96,17 +113,6 @@ func (interrogator *Interrogator) Run(ctx context.Context) (*InterrogationResult
 	}
 
 	peers := valuesOfIDToNodeMap(peersByID)
-
-	// request client ID
-	var clientID *string
-	hello, handshakeErr := Handshake(ctx, interrogator.node.IP(), interrogator.node.TCP(), interrogator.node.Pubkey(), interrogator.privateKey)
-	if (handshakeErr != nil) && !errors.Is(handshakeErr, context.Canceled) {
-		interrogator.log.Warn("Failed to obtain clientID", "err", handshakeErr)
-	}
-	if hello != nil {
-		interrogator.log.Debug("Got client ID", "clientID", hello.ClientID)
-		clientID = &hello.ClientID
-	}
 
 	result := InterrogationResult{interrogator.node, isCompatFork, peers, clientID, handshakeErr}
 	return &result, nil
