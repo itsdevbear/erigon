@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon/cmd/observer/observer"
+	"github.com/ledgerwatch/erigon/cmd/observer/reports"
 	"github.com/ledgerwatch/erigon/cmd/utils"
 	"github.com/ledgerwatch/log/v3"
 	"path/filepath"
@@ -43,11 +45,36 @@ func mainWithFlags(ctx context.Context, flags observer.CommandFlags) error {
 	return crawler.Run(ctx)
 }
 
+func reportWithFlags(ctx context.Context, flags reports.CommandFlags) error {
+	db, err := observer.NewDBSQLite(filepath.Join(flags.DataDir, "observer.sqlite"))
+	if err != nil {
+		return err
+	}
+
+	statusReport, err:= reports.CreateStatusReport(ctx, db)
+	if err != nil {
+		return err
+	}
+	clientsReport, err := reports.CreateClientsReport(ctx, db)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(statusReport)
+	fmt.Println(clientsReport)
+	return nil
+}
+
 func main() {
 	ctx, cancel := common.RootContext()
 	defer cancel()
 
 	command := observer.NewCommand()
+
+	reportCommand := reports.NewCommand()
+	reportCommand.OnRun(reportWithFlags)
+	command.AddSubCommand(reportCommand.RawCommand())
+
 	if err := command.ExecuteContext(ctx, mainWithFlags); err != nil {
 		utils.Fatalf("%v", err)
 	}

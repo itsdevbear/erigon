@@ -30,12 +30,7 @@ type Command struct {
 
 func NewCommand() *Command {
 	command := cobra.Command{
-		Use:     "",
-		Short:   "P2P network crawler",
-		Example: "",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return nil
-		},
+		Short: "P2P network crawler",
 	}
 
 	// debug flags
@@ -126,6 +121,10 @@ func (command *Command) ExecuteContext(ctx context.Context, runFunc func(ctx con
 		return runFunc(cmd.Context(), command.flags)
 	}
 	return command.command.ExecuteContext(ctx)
+}
+
+func (command *Command) AddSubCommand(subCommand *cobra.Command) {
+	command.command.AddCommand(subCommand)
 }
 
 func must(err error) {

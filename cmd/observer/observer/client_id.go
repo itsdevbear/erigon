@@ -78,3 +78,8 @@ func IsClientIDBlacklisted(clientID string) bool {
 	}
 	return false
 }
+
+func NameFromClientID(clientID string) string {
+	parts := strings.SplitN(clientID, "/", 2)
+	return parts[0]
+}

@@ -22,4 +22,5 @@ type DB interface {
 
 	CountNodes(ctx context.Context) (uint, error)
 	CountIPs(ctx context.Context) (uint, error)
+	EnumerateClientIDs(ctx context.Context, enumFunc func(clientID *string)) error
 }

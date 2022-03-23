@@ -104,6 +104,10 @@ SELECT COUNT(id) FROM nodes
 	sqlCountIPs = `
 SELECT COUNT(DISTINCT ip) FROM nodes
 `
+
+	sqlEnumerateClientIDs = `
+SELECT client_id FROM nodes
+`
 )
 
 func NewDBSQLite(filePath string) (*DBSQLite, error) {
@@ -374,6 +378,34 @@ func (db *DBSQLite) CountIPs(ctx context.Context) (uint, error) {
 		return 0, fmt.Errorf("CountIPs failed: %w", err)
 	}
 	return count, nil
+}
+
+func (db *DBSQLite) EnumerateClientIDs(ctx context.Context, enumFunc func(clientID *string)) error {
+	cursor, err := db.db.QueryContext(ctx, sqlEnumerateClientIDs)
+	if err != nil {
+		return fmt.Errorf("EnumerateClientIDs failed to query: %w", err)
+	}
+	defer func() {
+		_ = cursor.Close()
+	}()
+
+	for cursor.Next() {
+		var clientID sql.NullString
+		err := cursor.Scan(&clientID)
+		if err != nil {
+			return fmt.Errorf("EnumerateClientIDs failed to read data: %w", err)
+		}
+		if clientID.Valid {
+			enumFunc(&clientID.String)
+		} else {
+			enumFunc(nil)
+		}
+	}
+
+	if err := cursor.Err(); err != nil {
+		return fmt.Errorf("EnumerateClientIDs failed to iterate: %w", err)
+	}
+	return nil
 }
 
 func nodeID(node *enode.Node) (string, error) {
