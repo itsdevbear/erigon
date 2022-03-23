@@ -68,7 +68,7 @@ ON CONFLICT(id) DO UPDATE SET
 `
 
 	sqlUpdateForkCompatibility = `
-UPDATE nodes SET compat_fork = ? WHERE id = ?
+UPDATE nodes SET compat_fork = ?, updated = ? WHERE id = ?
 `
 
 	sqlUpdateClientID = `
@@ -192,7 +192,9 @@ func (db *DBSQLite) UpdateForkCompatibility(ctx context.Context, node *enode.Nod
 		return fmt.Errorf("UpdateForkCompatibility failed to get node ID: %w", err)
 	}
 
-	_, err = db.db.ExecContext(ctx, sqlUpdateForkCompatibility, isCompatFork, id)
+	updated := time.Now().Unix()
+
+	_, err = db.db.ExecContext(ctx, sqlUpdateForkCompatibility, isCompatFork, updated, id)
 	if err != nil {
 		return fmt.Errorf("UpdateForkCompatibility failed to update a node: %w", err)
 	}
