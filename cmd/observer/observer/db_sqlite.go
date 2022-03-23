@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS nodes (
     ip_v6_port_rlpx INTEGER,
     compat_fork INTEGER,
     client_id TEXT,
+    handshake_err TEXT,
     taken_last INTEGER,
     updated INTEGER NOT NULL
 );
@@ -52,11 +53,8 @@ INSERT INTO nodes(
     ip_v6,
     ip_v6_port_disc,
     ip_v6_port_rlpx,
-	compat_fork,
-    client_id,
-    taken_last,
     updated
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
     ip = excluded.ip,
     port_disc = excluded.port_disc,
@@ -73,6 +71,10 @@ UPDATE nodes SET compat_fork = ?, updated = ? WHERE id = ?
 
 	sqlUpdateClientID = `
 UPDATE nodes SET client_id = ?, updated = ? WHERE id = ?
+`
+
+	sqlUpdateHandshakeError = `
+UPDATE nodes SET handshake_err = ?, updated = ? WHERE id = ?
 `
 
 	sqlFindCandidates = `
@@ -167,18 +169,12 @@ func (db *DBSQLite) UpsertNode(ctx context.Context, node *enode.Node) error {
 		ipV6PortRLPx = &value
 	}
 
-	var isCompatFork *bool
-	var clientID *string
-	var takenLast *int
 	updated := time.Now().Unix()
 
 	_, err = db.db.ExecContext(ctx, sqlUpsertNode,
 		id,
 		ip, portDisc, portRLPx,
 		ipV6, ipV6PortDisc, ipV6PortRLPx,
-		isCompatFork,
-		clientID,
-		takenLast,
 		updated)
 	if err != nil {
 		return fmt.Errorf("failed to upsert a node: %w", err)
@@ -212,6 +208,21 @@ func (db *DBSQLite) UpdateClientID(ctx context.Context, node *enode.Node, client
 	_, err = db.db.ExecContext(ctx, sqlUpdateClientID, clientID, updated, id)
 	if err != nil {
 		return fmt.Errorf("UpdateClientID failed to update a node: %w", err)
+	}
+	return nil
+}
+
+func (db *DBSQLite) UpdateHandshakeError(ctx context.Context, node *enode.Node, handshakeErr string) error {
+	id, err := nodeID(node)
+	if err != nil {
+		return fmt.Errorf("UpdateHandshakeError failed to get node ID: %w", err)
+	}
+
+	updated := time.Now().Unix()
+
+	_, err = db.db.ExecContext(ctx, sqlUpdateHandshakeError, handshakeErr, updated, id)
+	if err != nil {
+		return fmt.Errorf("UpdateHandshakeError failed to update a node: %w", err)
 	}
 	return nil
 }

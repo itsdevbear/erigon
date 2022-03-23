@@ -76,6 +76,21 @@ func (db DBRetrier) UpdateClientID(ctx context.Context, node *enode.Node, client
 	return err
 }
 
+func (db DBRetrier) UpdateHandshakeError(ctx context.Context, node *enode.Node, handshakeErr string) error {
+	var err error
+	for i := 0; i <= retryCount; i += 1 {
+		if i > 0 {
+			db.log.Trace("retrying UpdateHandshakeError", "attempt", i, "err", err)
+		}
+		sleep(ctx, retryBackoffTime(i))
+		err = db.db.UpdateHandshakeError(ctx, node, handshakeErr)
+		if (err == nil) || !db.db.IsConflictError(err) {
+			break
+		}
+	}
+	return err
+}
+
 func (db DBRetrier) TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) ([]*enode.Node, error) {
 	var result []*enode.Node
 	var err error

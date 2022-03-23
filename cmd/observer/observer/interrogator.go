@@ -31,6 +31,7 @@ type InterrogationResult struct {
 	IsCompatFork *bool
 	Peers        []*enode.Node
 	ClientID     *string
+	HandshakeErr *HandshakeError
 }
 
 func NewInterrogator(node *enode.Node, transport DiscV4Transport, forkFilter forkid.Filter, privateKey *ecdsa.PrivateKey, logger log.Logger) (*Interrogator, error) {
@@ -72,7 +73,7 @@ func (interrogator *Interrogator) Run(ctx context.Context) (*InterrogationResult
 		isCompatFork = new(bool)
 		*isCompatFork = (err == nil) || !errors.Is(err, forkid.ErrLocalIncompatibleOrStale)
 		if !*isCompatFork {
-			result := InterrogationResult{interrogator.node, isCompatFork, nil, nil}
+			result := InterrogationResult{interrogator.node, isCompatFork, nil, nil, nil}
 			return &result, fmt.Errorf("incompatible ENR fork ID %w", err)
 		}
 	}
@@ -98,16 +99,16 @@ func (interrogator *Interrogator) Run(ctx context.Context) (*InterrogationResult
 
 	// request client ID
 	var clientID *string
-	hello, err := Handshake(ctx, interrogator.node.IP(), interrogator.node.TCP(), interrogator.node.Pubkey(), interrogator.privateKey)
-	if (err != nil) && !errors.Is(err, context.Canceled) {
-		interrogator.log.Warn("Failed to obtain clientID", "err", err)
+	hello, handshakeErr := Handshake(ctx, interrogator.node.IP(), interrogator.node.TCP(), interrogator.node.Pubkey(), interrogator.privateKey)
+	if (handshakeErr != nil) && !errors.Is(handshakeErr, context.Canceled) {
+		interrogator.log.Warn("Failed to obtain clientID", "err", handshakeErr)
 	}
 	if hello != nil {
 		interrogator.log.Debug("Got client ID", "clientID", hello.ClientID)
 		clientID = &hello.ClientID
 	}
 
-	result := InterrogationResult{interrogator.node, isCompatFork, peers, clientID}
+	result := InterrogationResult{interrogator.node, isCompatFork, peers, clientID, handshakeErr}
 	return &result, nil
 }
 

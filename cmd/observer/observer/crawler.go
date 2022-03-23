@@ -145,6 +145,16 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 				}
 			}
 
+			if (result != nil) && (result.HandshakeErr != nil) {
+				dbErr := crawler.db.UpdateHandshakeError(ctx, result.Node, result.HandshakeErr.StringCode())
+				if dbErr != nil {
+					if !errors.Is(dbErr, context.Canceled) {
+						logger.Error("Failed to update handshake error", "err", dbErr)
+					}
+					return
+				}
+			}
+
 			if err != nil {
 				if !errors.Is(err, context.Canceled) {
 					logFunc := logger.Warn
