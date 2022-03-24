@@ -5,11 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/ledgerwatch/erigon/p2p/enode"
-	"github.com/ledgerwatch/erigon/p2p/enr"
 	_ "modernc.org/sqlite"
 	"net"
-	"net/url"
 	"strings"
 	"time"
 )
@@ -125,63 +122,52 @@ func NewDBSQLite(filePath string) (*DBSQLite, error) {
 	return &instance, nil
 }
 
-func (db *DBSQLite) UpsertNode(ctx context.Context, node *enode.Node) error {
-	id, err := nodeID(node)
-	if err != nil {
-		return fmt.Errorf("UpsertNode failed to get node ID: %w", err)
-	}
-
+func (db *DBSQLite) UpsertNodeAddr(ctx context.Context, id NodeID, addr NodeAddr) error {
 	var ip *string
-	var ipEntry enr.IPv4
-	if node.Load(&ipEntry) == nil {
-		value := net.IP(ipEntry).String()
+	if addr.IP != nil {
+		value := addr.IP.String()
 		ip = &value
 	}
 
 	var ipV6 *string
-	var ipV6Entry enr.IPv6
-	if node.Load(&ipV6Entry) == nil {
-		value := net.IP(ipEntry).String()
+	if addr.IPv6.IP != nil {
+		value := addr.IPv6.IP.String()
 		ipV6 = &value
 	}
 
 	var portDisc *int
-	var portDiscEntry enr.UDP
-	if (ip != nil) && (node.Load(&portDiscEntry) == nil) {
-		value := int(portDiscEntry)
+	if (ip != nil) && (addr.PortDisc != 0) {
+		value := int(addr.PortDisc)
 		portDisc = &value
 	}
 
 	var ipV6PortDisc *int
-	var ipV6PortDiscEntry enr.UDP6
-	if (ipV6 != nil) && (node.Load(&ipV6PortDiscEntry) == nil) {
-		value := int(ipV6PortDiscEntry)
+	if (ipV6 != nil) && (addr.IPv6.PortDisc != 0) {
+		value := int(addr.IPv6.PortDisc)
 		ipV6PortDisc = &value
 	}
 
 	var portRLPx *int
-	var portRLPxEntry enr.TCP
-	if (ip != nil) && (node.Load(&portRLPxEntry) == nil) {
-		value := int(portRLPxEntry)
+	if (ip != nil) && (addr.PortRLPx != 0) {
+		value := int(addr.PortRLPx)
 		portRLPx = &value
 	}
 
 	var ipV6PortRLPx *int
-	var ipV6PortRLPxEntry enr.TCP
-	if (ipV6 != nil) && (node.Load(&ipV6PortRLPxEntry) == nil) {
-		value := int(ipV6PortRLPxEntry)
+	if (ipV6 != nil) && (addr.IPv6.PortRLPx != 0) {
+		value := int(addr.IPv6.PortRLPx)
 		ipV6PortRLPx = &value
 	}
 
 	updated := time.Now().Unix()
 
-	_, err = db.db.ExecContext(ctx, sqlUpsertNode,
+	_, err := db.db.ExecContext(ctx, sqlUpsertNode,
 		id,
 		ip, portDisc, portRLPx,
 		ipV6, ipV6PortDisc, ipV6PortRLPx,
 		updated)
 	if err != nil {
-		return fmt.Errorf("failed to upsert a node: %w", err)
+		return fmt.Errorf("failed to upsert a node address: %w", err)
 	}
 	return nil
 }
@@ -216,7 +202,7 @@ func (db *DBSQLite) UpdateHandshakeError(ctx context.Context, id NodeID, handsha
 	return nil
 }
 
-func (db *DBSQLite) FindCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) ([]*enode.Node, error) {
+func (db *DBSQLite) FindCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) (map[NodeID]NodeAddr, error) {
 	takenLastBefore := time.Now().Add(-minUnusedDuration).Unix()
 	cursor, err := db.db.QueryContext(ctx, sqlFindCandidates, takenLastBefore, limit)
 	if err != nil {
@@ -226,7 +212,7 @@ func (db *DBSQLite) FindCandidates(ctx context.Context, minUnusedDuration time.D
 		_ = cursor.Close()
 	}()
 
-	var nodes []*enode.Node
+	nodes := make(map[NodeID]NodeAddr)
 	for cursor.Next() {
 		var id string
 		var ip sql.NullString
@@ -243,48 +229,40 @@ func (db *DBSQLite) FindCandidates(ctx context.Context, minUnusedDuration time.D
 			return nil, fmt.Errorf("FindCandidates failed to read candidate data: %w", err)
 		}
 
-		rec := new(enr.Record)
-
-		nodeWithPubkey, err := enode.ParseV4("enode://" + id)
-		if err != nil {
-			return nil, fmt.Errorf("FindCandidates failed to decode a public key: %w", err)
-		}
-		rec.Set((*enode.Secp256k1)(nodeWithPubkey.Pubkey()))
+		var addr NodeAddr
 
 		if ip.Valid {
 			value := net.ParseIP(ip.String)
 			if value == nil {
 				return nil, errors.New("FindCandidates failed to parse IP")
 			}
-			rec.Set(enr.IP(value))
+			addr.IP = value
 		}
 		if ipV6.Valid {
 			value := net.ParseIP(ipV6.String)
 			if value == nil {
 				return nil, errors.New("FindCandidates failed to parse IPv6")
 			}
-			rec.Set(enr.IPv6(value))
+			addr.IPv6.IP = value
 		}
 		if portDisc.Valid {
-			rec.Set(enr.UDP(portDisc.Int32))
+			value := uint16(portDisc.Int32)
+			addr.PortDisc = value
 		}
 		if portRLPx.Valid {
-			rec.Set(enr.TCP(portRLPx.Int32))
+			value := uint16(portRLPx.Int32)
+			addr.PortRLPx = value
 		}
 		if ipV6PortDisc.Valid {
-			rec.Set(enr.UDP6(ipV6PortDisc.Int32))
+			value := uint16(ipV6PortDisc.Int32)
+			addr.IPv6.PortDisc = value
 		}
 		if ipV6PortRLPx.Valid {
-			rec.Set(enr.TCP6(ipV6PortRLPx.Int32))
+			value := uint16(ipV6PortRLPx.Int32)
+			addr.IPv6.PortRLPx = value
 		}
 
-		rec.Set(enr.ID("unsigned"))
-		node, err := enode.New(enr.SchemeMap{"unsigned": noSignatureIDScheme{}}, rec)
-		if err != nil {
-			return nil, fmt.Errorf("FindCandidates failed to make a node: %w", err)
-		}
-
-		nodes = append(nodes, node)
+		nodes[NodeID(id)] = addr
 	}
 
 	if err := cursor.Err(); err != nil {
@@ -311,7 +289,7 @@ func (db *DBSQLite) MarkTakenNodes(ctx context.Context, ids []NodeID) error {
 	return nil
 }
 
-func (db *DBSQLite) TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) ([]*enode.Node, error) {
+func (db *DBSQLite) TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) (map[NodeID]NodeAddr, error) {
 	tx, err := db.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("TakeCandidates failed to start transaction: %w", err)
@@ -323,12 +301,7 @@ func (db *DBSQLite) TakeCandidates(ctx context.Context, minUnusedDuration time.D
 		return nil, err
 	}
 
-	ids, err := idsOfNodes(nodes)
-	if err != nil {
-		_ = tx.Rollback()
-		return nil, fmt.Errorf("TakeCandidates failed to get node IDs: %w", err)
-	}
-
+	ids := keysOfIDToAddrMap(nodes)
 	err = db.MarkTakenNodes(ctx, ids)
 	if err != nil {
 		_ = tx.Rollback()
@@ -395,26 +368,6 @@ func (db *DBSQLite) EnumerateClientIDs(ctx context.Context, enumFunc func(client
 	return nil
 }
 
-func nodeID(node *enode.Node) (string, error) {
-	if node.Incomplete() {
-		return "", errors.New("nodeID not implemented for incomplete nodes")
-	}
-	nodeURL, err := url.Parse(node.URLv4())
-	if err != nil {
-		return "", fmt.Errorf("failed to parse node URL: %w", err)
-	}
-	id := nodeURL.User.Username()
-	return id, nil
-}
-
-type noSignatureIDScheme struct {
-	enode.V4ID
-}
-
-func (noSignatureIDScheme) Verify(_ *enr.Record, _ []byte) error {
-	return nil
-}
-
 func stringsToAny(strValues []NodeID) []interface{} {
 	values := make([]interface{}, 0, len(strValues))
 	for _, value := range strValues {
@@ -423,14 +376,10 @@ func stringsToAny(strValues []NodeID) []interface{} {
 	return values
 }
 
-func idsOfNodes(nodes []*enode.Node) ([]NodeID, error) {
-	ids := make([]NodeID, 0, len(nodes))
-	for _, node := range nodes {
-		id, err := nodeID(node)
-		if err != nil {
-			return nil, err
-		}
-		ids = append(ids, NodeID(id))
+func keysOfIDToAddrMap(m map[NodeID]NodeAddr) []NodeID {
+	keys := make([]NodeID, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
 	}
-	return ids, nil
+	return keys
 }

@@ -3,7 +3,6 @@ package database
 import (
 	"context"
 	"github.com/ledgerwatch/erigon/cmd/observer/utils"
-	"github.com/ledgerwatch/erigon/p2p/enode"
 	"github.com/ledgerwatch/log/v3"
 	"math/rand"
 	"time"
@@ -32,14 +31,14 @@ func retryBackoffTime(attempt int) time.Duration {
 	return time.Duration(ns)
 }
 
-func (db DBRetrier) UpsertNode(ctx context.Context, node *enode.Node) error {
+func (db DBRetrier) UpsertNodeAddr(ctx context.Context, id NodeID, addr NodeAddr) error {
 	var err error
 	for i := 0; i <= retryCount; i += 1 {
 		if i > 0 {
 			db.log.Trace("retrying UpsertNode", "attempt", i, "err", err)
 		}
 		utils.Sleep(ctx, retryBackoffTime(i))
-		err = db.db.UpsertNode(ctx, node)
+		err = db.db.UpsertNodeAddr(ctx, id, addr)
 		if (err == nil) || !db.db.IsConflictError(err) {
 			break
 		}
@@ -92,8 +91,8 @@ func (db DBRetrier) UpdateHandshakeError(ctx context.Context, id NodeID, handsha
 	return err
 }
 
-func (db DBRetrier) TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) ([]*enode.Node, error) {
-	var result []*enode.Node
+func (db DBRetrier) TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) (map[NodeID]NodeAddr, error) {
+	var result map[NodeID]NodeAddr
 	var err error
 	for i := 0; i <= retryCount; i += 1 {
 		if i > 0 {

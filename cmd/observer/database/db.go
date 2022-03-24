@@ -2,23 +2,34 @@ package database
 
 import (
 	"context"
-	"github.com/ledgerwatch/erigon/p2p/enode"
+	"net"
 	"time"
 )
 
 type NodeID string
 
+type NodeAddr1 struct {
+	IP       net.IP
+	PortDisc uint16
+	PortRLPx uint16
+}
+
+type NodeAddr struct {
+	NodeAddr1
+	IPv6 NodeAddr1
+}
+
 type DB interface {
-	UpsertNode(ctx context.Context, node *enode.Node) error
+	UpsertNodeAddr(ctx context.Context, id NodeID, addr NodeAddr) error
 	UpdateForkCompatibility(ctx context.Context, id NodeID, isCompatFork bool) error
 	UpdateClientID(ctx context.Context, id NodeID, clientID string) error
 	UpdateHandshakeError(ctx context.Context, id NodeID, handshakeErr string) error
 
-	FindCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) ([]*enode.Node, error)
+	FindCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) (map[NodeID]NodeAddr, error)
 	MarkTakenNodes(ctx context.Context, nodes []NodeID) error
 
 	// TakeCandidates runs FindCandidates + MarkTakenNodes in a transaction.
-	TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) ([]*enode.Node, error)
+	TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) (map[NodeID]NodeAddr, error)
 
 	IsConflictError(err error) bool
 

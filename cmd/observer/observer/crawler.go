@@ -89,7 +89,12 @@ func (crawler *Crawler) selectCandidates(ctx context.Context, nodes chan<- *enod
 			utils.Sleep(ctx, 1*time.Second)
 		}
 
-		for _, node := range candidates {
+		for id, addr := range candidates {
+			node, err := makeNodeFromAddr(id, addr)
+			if err != nil {
+				return err
+			}
+
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -177,7 +182,13 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 			logger.Info(fmt.Sprintf("Got %d peers", len(peers)))
 
 			for _, peer := range peers {
-				err = crawler.db.UpsertNode(ctx, peer)
+				peerID, err := nodeID(peer)
+				if err != nil {
+					logger.Error("Failed to get peer node ID", "err", err)
+					continue
+				}
+
+				err = crawler.db.UpsertNodeAddr(ctx, peerID, makeNodeAddr(peer))
 				if err != nil {
 					if !errors.Is(err, context.Canceled) {
 						logger.Error("Failed to save node", "err", err)
