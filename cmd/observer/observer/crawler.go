@@ -127,7 +127,22 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 			return fmt.Errorf("failed to get node ID: %w", err)
 		}
 
-		interrogator, err := NewInterrogator(node, crawler.transport, crawler.forkFilter, crawler.config.PrivateKey, logger)
+		handshakeLastTry, err := crawler.db.FindHandshakeLastTry(ctx, id)
+		if err != nil {
+			return fmt.Errorf("failed to get handshake last try: %w", err)
+		}
+
+		// the client ID doesn't need to be refreshed often
+		handshakeRefreshTimeout := 7 * 24 * time.Hour
+
+		interrogator, err := NewInterrogator(
+			node,
+			crawler.transport,
+			crawler.forkFilter,
+			crawler.config.PrivateKey,
+			handshakeLastTry,
+			handshakeRefreshTimeout,
+			logger)
 		if err != nil {
 			return fmt.Errorf("failed to create Interrogator for node %s: %w", nodeDesc, err)
 		}

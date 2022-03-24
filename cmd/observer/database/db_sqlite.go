@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS nodes (
 
     client_id TEXT,
     handshake_err TEXT,
+    handshake_try INTEGER NOT NULL DEFAULT 0,
     handshake_updated INTEGER,
     
     taken_last INTEGER
@@ -73,11 +74,29 @@ UPDATE nodes SET compat_fork = ?, compat_fork_updated = ? WHERE id = ?
 `
 
 	sqlUpdateClientID = `
-UPDATE nodes SET client_id = ?, handshake_updated = ? WHERE id = ?
+UPDATE nodes SET 
+	client_id = ?, 
+	handshake_err = NULL,
+    handshake_try = 0,
+	handshake_updated = ?
+WHERE id = ?
 `
 
 	sqlUpdateHandshakeError = `
-UPDATE nodes SET handshake_err = ?, handshake_updated = ? WHERE id = ?
+UPDATE nodes SET
+	handshake_err = ?,
+	handshake_try = nodes.handshake_try + 1,
+	handshake_updated = ?
+WHERE id = ?
+`
+
+	sqlFindHandshakeLastTry = `
+SELECT
+	handshake_err,
+	handshake_try, 
+	handshake_updated
+FROM nodes
+WHERE id = ?
 `
 
 	sqlFindCandidates = `
@@ -206,6 +225,33 @@ func (db *DBSQLite) UpdateHandshakeError(ctx context.Context, id NodeID, handsha
 		return fmt.Errorf("UpdateHandshakeError failed to update a node: %w", err)
 	}
 	return nil
+}
+
+func (db *DBSQLite) FindHandshakeLastTry(ctx context.Context, id NodeID) (*HandshakeTry, error) {
+	row := db.db.QueryRowContext(ctx, sqlFindHandshakeLastTry, id)
+
+	var handshakeErr sql.NullString
+	var tryNum sql.NullInt32
+	var updatedTimestamp sql.NullInt64
+
+	if err := row.Scan(&handshakeErr, &tryNum, &updatedTimestamp); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("FindHandshakeLastTry failed: %w", err)
+	}
+
+	// if never we tried to handshake then the update time is NULL
+	if !updatedTimestamp.Valid {
+		return nil, nil
+	}
+
+	try := HandshakeTry{
+		handshakeErr.Valid,
+		uint(tryNum.Int32),
+		time.Unix(updatedTimestamp.Int64, 0),
+	}
+	return &try, nil
 }
 
 func (db *DBSQLite) FindCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) (map[NodeID]NodeAddr, error) {

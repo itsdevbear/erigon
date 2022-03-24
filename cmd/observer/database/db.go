@@ -19,11 +19,19 @@ type NodeAddr struct {
 	IPv6 NodeAddr1
 }
 
+type HandshakeTry struct {
+	HasFailed bool
+	Num uint
+	Time time.Time
+}
+
 type DB interface {
 	UpsertNodeAddr(ctx context.Context, id NodeID, addr NodeAddr) error
 	UpdateForkCompatibility(ctx context.Context, id NodeID, isCompatFork bool) error
 	UpdateClientID(ctx context.Context, id NodeID, clientID string) error
 	UpdateHandshakeError(ctx context.Context, id NodeID, handshakeErr string) error
+
+	FindHandshakeLastTry(ctx context.Context, id NodeID) (*HandshakeTry, error)
 
 	FindCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) (map[NodeID]NodeAddr, error)
 	MarkTakenNodes(ctx context.Context, nodes []NodeID) error

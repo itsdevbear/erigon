@@ -106,3 +106,7 @@ func (db DBRetrier) TakeCandidates(ctx context.Context, minUnusedDuration time.D
 	}
 	return result, err
 }
+
+func (db DBRetrier) FindHandshakeLastTry(ctx context.Context, id NodeID) (*HandshakeTry, error) {
+	return db.db.FindHandshakeLastTry(ctx, id)
+}
