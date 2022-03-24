@@ -117,6 +117,11 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 		nodeDesc := node.URLv4()
 		logger := crawler.log.New("node", nodeDesc)
 
+		id, err := nodeID(node)
+		if err != nil {
+			return fmt.Errorf("failed to get node ID: %w", err)
+		}
+
 		interrogator, err := NewInterrogator(node, crawler.transport, crawler.forkFilter, crawler.config.PrivateKey, logger)
 		if err != nil {
 			return fmt.Errorf("failed to create Interrogator for node %s: %w", nodeDesc, err)
@@ -128,7 +133,7 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 			result, err := interrogator.Run(ctx)
 
 			if (result != nil) && (result.IsCompatFork != nil) {
-				dbErr := crawler.db.UpdateForkCompatibility(ctx, result.Node, *result.IsCompatFork)
+				dbErr := crawler.db.UpdateForkCompatibility(ctx, id, *result.IsCompatFork)
 				if dbErr != nil {
 					if !errors.Is(dbErr, context.Canceled) {
 						logger.Error("Failed to update fork compatibility", "err", dbErr)
@@ -138,7 +143,7 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 			}
 
 			if (result != nil) && (result.ClientID != nil) {
-				dbErr := crawler.db.UpdateClientID(ctx, result.Node, *result.ClientID)
+				dbErr := crawler.db.UpdateClientID(ctx, id, *result.ClientID)
 				if dbErr != nil {
 					if !errors.Is(dbErr, context.Canceled) {
 						logger.Error("Failed to update client ID", "err", dbErr)
@@ -148,7 +153,7 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 			}
 
 			if (result != nil) && (result.HandshakeErr != nil) {
-				dbErr := crawler.db.UpdateHandshakeError(ctx, result.Node, result.HandshakeErr.StringCode())
+				dbErr := crawler.db.UpdateHandshakeError(ctx, id, result.HandshakeErr.StringCode())
 				if dbErr != nil {
 					if !errors.Is(dbErr, context.Canceled) {
 						logger.Error("Failed to update handshake error", "err", dbErr)

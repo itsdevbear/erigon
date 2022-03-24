@@ -47,14 +47,14 @@ func (db DBRetrier) UpsertNode(ctx context.Context, node *enode.Node) error {
 	return err
 }
 
-func (db DBRetrier) UpdateForkCompatibility(ctx context.Context, node *enode.Node, isCompatFork bool) error {
+func (db DBRetrier) UpdateForkCompatibility(ctx context.Context, id NodeID, isCompatFork bool) error {
 	var err error
 	for i := 0; i <= retryCount; i += 1 {
 		if i > 0 {
 			db.log.Trace("retrying UpdateForkCompatibility", "attempt", i, "err", err)
 		}
 		utils.Sleep(ctx, retryBackoffTime(i))
-		err = db.db.UpdateForkCompatibility(ctx, node, isCompatFork)
+		err = db.db.UpdateForkCompatibility(ctx, id, isCompatFork)
 		if (err == nil) || !db.db.IsConflictError(err) {
 			break
 		}
@@ -62,14 +62,14 @@ func (db DBRetrier) UpdateForkCompatibility(ctx context.Context, node *enode.Nod
 	return err
 }
 
-func (db DBRetrier) UpdateClientID(ctx context.Context, node *enode.Node, clientID string) error {
+func (db DBRetrier) UpdateClientID(ctx context.Context, id NodeID, clientID string) error {
 	var err error
 	for i := 0; i <= retryCount; i += 1 {
 		if i > 0 {
 			db.log.Trace("retrying UpdateClientID", "attempt", i, "err", err)
 		}
 		utils.Sleep(ctx, retryBackoffTime(i))
-		err = db.db.UpdateClientID(ctx, node, clientID)
+		err = db.db.UpdateClientID(ctx, id, clientID)
 		if (err == nil) || !db.db.IsConflictError(err) {
 			break
 		}
@@ -77,14 +77,14 @@ func (db DBRetrier) UpdateClientID(ctx context.Context, node *enode.Node, client
 	return err
 }
 
-func (db DBRetrier) UpdateHandshakeError(ctx context.Context, node *enode.Node, handshakeErr string) error {
+func (db DBRetrier) UpdateHandshakeError(ctx context.Context, id NodeID, handshakeErr string) error {
 	var err error
 	for i := 0; i <= retryCount; i += 1 {
 		if i > 0 {
 			db.log.Trace("retrying UpdateHandshakeError", "attempt", i, "err", err)
 		}
 		utils.Sleep(ctx, retryBackoffTime(i))
-		err = db.db.UpdateHandshakeError(ctx, node, handshakeErr)
+		err = db.db.UpdateHandshakeError(ctx, id, handshakeErr)
 		if (err == nil) || !db.db.IsConflictError(err) {
 			break
 		}

@@ -186,45 +186,30 @@ func (db *DBSQLite) UpsertNode(ctx context.Context, node *enode.Node) error {
 	return nil
 }
 
-func (db *DBSQLite) UpdateForkCompatibility(ctx context.Context, node *enode.Node, isCompatFork bool) error {
-	id, err := nodeID(node)
-	if err != nil {
-		return fmt.Errorf("UpdateForkCompatibility failed to get node ID: %w", err)
-	}
-
+func (db *DBSQLite) UpdateForkCompatibility(ctx context.Context, id NodeID, isCompatFork bool) error {
 	updated := time.Now().Unix()
 
-	_, err = db.db.ExecContext(ctx, sqlUpdateForkCompatibility, isCompatFork, updated, id)
+	_, err := db.db.ExecContext(ctx, sqlUpdateForkCompatibility, isCompatFork, updated, id)
 	if err != nil {
 		return fmt.Errorf("UpdateForkCompatibility failed to update a node: %w", err)
 	}
 	return nil
 }
 
-func (db *DBSQLite) UpdateClientID(ctx context.Context, node *enode.Node, clientID string) error {
-	id, err := nodeID(node)
-	if err != nil {
-		return fmt.Errorf("UpdateClientID failed to get node ID: %w", err)
-	}
-
+func (db *DBSQLite) UpdateClientID(ctx context.Context, id NodeID, clientID string) error {
 	updated := time.Now().Unix()
 
-	_, err = db.db.ExecContext(ctx, sqlUpdateClientID, clientID, updated, id)
+	_, err := db.db.ExecContext(ctx, sqlUpdateClientID, clientID, updated, id)
 	if err != nil {
 		return fmt.Errorf("UpdateClientID failed to update a node: %w", err)
 	}
 	return nil
 }
 
-func (db *DBSQLite) UpdateHandshakeError(ctx context.Context, node *enode.Node, handshakeErr string) error {
-	id, err := nodeID(node)
-	if err != nil {
-		return fmt.Errorf("UpdateHandshakeError failed to get node ID: %w", err)
-	}
-
+func (db *DBSQLite) UpdateHandshakeError(ctx context.Context, id NodeID, handshakeErr string) error {
 	updated := time.Now().Unix()
 
-	_, err = db.db.ExecContext(ctx, sqlUpdateHandshakeError, handshakeErr, updated, id)
+	_, err := db.db.ExecContext(ctx, sqlUpdateHandshakeError, handshakeErr, updated, id)
 	if err != nil {
 		return fmt.Errorf("UpdateHandshakeError failed to update a node: %w", err)
 	}
@@ -308,22 +293,18 @@ func (db *DBSQLite) FindCandidates(ctx context.Context, minUnusedDuration time.D
 	return nodes, nil
 }
 
-func (db *DBSQLite) MarkTakenNodes(ctx context.Context, nodes []*enode.Node) error {
-	if len(nodes) == 0 {
+func (db *DBSQLite) MarkTakenNodes(ctx context.Context, ids []NodeID) error {
+	if len(ids) == 0 {
 		return nil
 	}
 
 	takenLast := time.Now().Unix()
-	ids, err := idsOfNodes(nodes)
-	if err != nil {
-		return fmt.Errorf("failed to get node IDs: %w", err)
-	}
 
 	idsPlaceholders := strings.TrimRight(strings.Repeat("?,", len(ids)), ",")
 	query := strings.Replace(sqlMarkTakenNodes, "123", idsPlaceholders, 1)
 	args := append([]interface{}{takenLast}, stringsToAny(ids)...)
 
-	_, err = db.db.ExecContext(ctx, query, args...)
+	_, err := db.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("failed to mark taken nodes: %w", err)
 	}
@@ -342,7 +323,13 @@ func (db *DBSQLite) TakeCandidates(ctx context.Context, minUnusedDuration time.D
 		return nil, err
 	}
 
-	err = db.MarkTakenNodes(ctx, nodes)
+	ids, err := idsOfNodes(nodes)
+	if err != nil {
+		_ = tx.Rollback()
+		return nil, fmt.Errorf("TakeCandidates failed to get node IDs: %w", err)
+	}
+
+	err = db.MarkTakenNodes(ctx, ids)
 	if err != nil {
 		_ = tx.Rollback()
 		return nil, err
@@ -428,7 +415,7 @@ func (noSignatureIDScheme) Verify(_ *enr.Record, _ []byte) error {
 	return nil
 }
 
-func stringsToAny(strValues []string) []interface{} {
+func stringsToAny(strValues []NodeID) []interface{} {
 	values := make([]interface{}, 0, len(strValues))
 	for _, value := range strValues {
 		values = append(values, value)
@@ -436,14 +423,14 @@ func stringsToAny(strValues []string) []interface{} {
 	return values
 }
 
-func idsOfNodes(nodes []*enode.Node) ([]string, error) {
-	ids := make([]string, 0, len(nodes))
+func idsOfNodes(nodes []*enode.Node) ([]NodeID, error) {
+	ids := make([]NodeID, 0, len(nodes))
 	for _, node := range nodes {
 		id, err := nodeID(node)
 		if err != nil {
 			return nil, err
 		}
-		ids = append(ids, id)
+		ids = append(ids, NodeID(id))
 	}
 	return ids, nil
 }
