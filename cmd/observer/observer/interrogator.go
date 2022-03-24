@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"github.com/ledgerwatch/erigon/cmd/observer/utils"
 	"github.com/ledgerwatch/erigon/core/forkid"
 	"github.com/ledgerwatch/erigon/eth/protocols/eth"
 	"github.com/ledgerwatch/erigon/p2p/enode"
@@ -109,7 +110,7 @@ func (interrogator *Interrogator) Run(ctx context.Context) (*InterrogationResult
 			peersByID[node.ID()] = node
 		}
 
-		sleep(ctx, 1*time.Second)
+		utils.Sleep(ctx, 1*time.Second)
 	}
 
 	peers := valuesOfIDToNodeMap(peersByID)
@@ -126,9 +127,3 @@ func valuesOfIDToNodeMap(m map[enode.ID]*enode.Node) []*enode.Node {
 	return values
 }
 
-func sleep(parentContext context.Context, timeout time.Duration) {
-	if timeout <= 0 { return }
-	ctx, cancel := context.WithTimeout(parentContext, timeout)
-	defer cancel()
-	<-ctx.Done()
-}

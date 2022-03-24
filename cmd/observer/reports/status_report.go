@@ -3,7 +3,7 @@ package reports
 import (
 	"context"
 	"fmt"
-	"github.com/ledgerwatch/erigon/cmd/observer/observer"
+	"github.com/ledgerwatch/erigon/cmd/observer/database"
 	"strings"
 )
 
@@ -12,7 +12,7 @@ type StatusReport struct {
 	DistinctIPCount uint
 }
 
-func CreateStatusReport(ctx context.Context, db observer.DB) (*StatusReport, error) {
+func CreateStatusReport(ctx context.Context, db database.DB) (*StatusReport, error) {
 	totalCount, err := db.CountNodes(ctx)
 	if err != nil {
 		return nil, err

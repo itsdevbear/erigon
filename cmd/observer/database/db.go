@@ -1,4 +1,4 @@
-package observer
+package database
 
 import (
 	"context"

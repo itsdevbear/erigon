@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/ledgerwatch/erigon-lib/common"
+	"github.com/ledgerwatch/erigon/cmd/observer/database"
 	"github.com/ledgerwatch/erigon/cmd/observer/observer"
 	"github.com/ledgerwatch/erigon/cmd/observer/reports"
 	"github.com/ledgerwatch/erigon/cmd/utils"
@@ -17,7 +18,7 @@ func mainWithFlags(ctx context.Context, flags observer.CommandFlags) error {
 		return err
 	}
 
-	db, err := observer.NewDBSQLite(filepath.Join(flags.DataDir, "observer.sqlite"))
+	db, err := database.NewDBSQLite(filepath.Join(flags.DataDir, "observer.sqlite"))
 	if err != nil {
 		return err
 	}
@@ -46,7 +47,7 @@ func mainWithFlags(ctx context.Context, flags observer.CommandFlags) error {
 }
 
 func reportWithFlags(ctx context.Context, flags reports.CommandFlags) error {
-	db, err := observer.NewDBSQLite(filepath.Join(flags.DataDir, "observer.sqlite"))
+	db, err := database.NewDBSQLite(filepath.Join(flags.DataDir, "observer.sqlite"))
 	if err != nil {
 		return err
 	}

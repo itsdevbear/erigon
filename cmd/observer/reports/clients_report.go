@@ -3,6 +3,7 @@ package reports
 import (
 	"context"
 	"fmt"
+	"github.com/ledgerwatch/erigon/cmd/observer/database"
 	"github.com/ledgerwatch/erigon/cmd/observer/observer"
 	"strings"
 )
@@ -16,7 +17,7 @@ type ClientsReport struct {
 	Clients []ClientsReportEntry
 }
 
-func CreateClientsReport(ctx context.Context, db observer.DB) (*ClientsReport, error) {
+func CreateClientsReport(ctx context.Context, db database.DB) (*ClientsReport, error) {
 	groups := make(map[string]uint)
 	unknownCount := uint(0)
 	enumFunc := func(clientID *string) {

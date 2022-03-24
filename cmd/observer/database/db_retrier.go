@@ -1,7 +1,8 @@
-package observer
+package database
 
 import (
 	"context"
+	"github.com/ledgerwatch/erigon/cmd/observer/utils"
 	"github.com/ledgerwatch/erigon/p2p/enode"
 	"github.com/ledgerwatch/log/v3"
 	"math/rand"
@@ -37,7 +38,7 @@ func (db DBRetrier) UpsertNode(ctx context.Context, node *enode.Node) error {
 		if i > 0 {
 			db.log.Trace("retrying UpsertNode", "attempt", i, "err", err)
 		}
-		sleep(ctx, retryBackoffTime(i))
+		utils.Sleep(ctx, retryBackoffTime(i))
 		err = db.db.UpsertNode(ctx, node)
 		if (err == nil) || !db.db.IsConflictError(err) {
 			break
@@ -52,7 +53,7 @@ func (db DBRetrier) UpdateForkCompatibility(ctx context.Context, node *enode.Nod
 		if i > 0 {
 			db.log.Trace("retrying UpdateForkCompatibility", "attempt", i, "err", err)
 		}
-		sleep(ctx, retryBackoffTime(i))
+		utils.Sleep(ctx, retryBackoffTime(i))
 		err = db.db.UpdateForkCompatibility(ctx, node, isCompatFork)
 		if (err == nil) || !db.db.IsConflictError(err) {
 			break
@@ -67,7 +68,7 @@ func (db DBRetrier) UpdateClientID(ctx context.Context, node *enode.Node, client
 		if i > 0 {
 			db.log.Trace("retrying UpdateClientID", "attempt", i, "err", err)
 		}
-		sleep(ctx, retryBackoffTime(i))
+		utils.Sleep(ctx, retryBackoffTime(i))
 		err = db.db.UpdateClientID(ctx, node, clientID)
 		if (err == nil) || !db.db.IsConflictError(err) {
 			break
@@ -82,7 +83,7 @@ func (db DBRetrier) UpdateHandshakeError(ctx context.Context, node *enode.Node, 
 		if i > 0 {
 			db.log.Trace("retrying UpdateHandshakeError", "attempt", i, "err", err)
 		}
-		sleep(ctx, retryBackoffTime(i))
+		utils.Sleep(ctx, retryBackoffTime(i))
 		err = db.db.UpdateHandshakeError(ctx, node, handshakeErr)
 		if (err == nil) || !db.db.IsConflictError(err) {
 			break
@@ -98,7 +99,7 @@ func (db DBRetrier) TakeCandidates(ctx context.Context, minUnusedDuration time.D
 		if i > 0 {
 			db.log.Trace("retrying TakeCandidates", "attempt", i, "err", err)
 		}
-		sleep(ctx, retryBackoffTime(i))
+		utils.Sleep(ctx, retryBackoffTime(i))
 		result, err = db.db.TakeCandidates(ctx, minUnusedDuration, limit)
 		if (err == nil) || !db.db.IsConflictError(err) {
 			break

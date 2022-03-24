@@ -5,6 +5,8 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"github.com/ledgerwatch/erigon/cmd/observer/database"
+	"github.com/ledgerwatch/erigon/cmd/observer/utils"
 	"github.com/ledgerwatch/erigon/core/forkid"
 	"github.com/ledgerwatch/erigon/p2p/enode"
 	"github.com/ledgerwatch/erigon/params"
@@ -15,7 +17,7 @@ import (
 
 type Crawler struct {
 	transport  DiscV4Transport
-	db         DBRetrier
+	db         database.DBRetrier
 	config     CrawlerConfig
 	forkFilter forkid.Filter
 	log        log.Logger
@@ -31,7 +33,7 @@ type CrawlerConfig struct {
 
 func NewCrawler(
 	transport DiscV4Transport,
-	db DB,
+	db database.DB,
 	config CrawlerConfig,
 	logger log.Logger,
 ) (*Crawler, error) {
@@ -46,7 +48,7 @@ func NewCrawler(
 
 	instance := Crawler{
 		transport,
-		NewDBRetrier(db, logger),
+		database.NewDBRetrier(db, logger),
 		config,
 		forkFilter,
 		logger,
@@ -84,7 +86,7 @@ func (crawler *Crawler) selectCandidates(ctx context.Context, nodes chan<- *enod
 		}
 
 		if len(candidates) == 0 {
-			sleep(ctx, 1*time.Second)
+			utils.Sleep(ctx, 1*time.Second)
 		}
 
 		for _, node := range candidates {
