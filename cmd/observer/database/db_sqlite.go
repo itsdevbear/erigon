@@ -22,17 +22,23 @@ PRAGMA journal_mode = WAL;
 
 CREATE TABLE IF NOT EXISTS nodes (
     id TEXT PRIMARY KEY,
+
     ip TEXT,
     port_disc INTEGER,
     port_rlpx INTEGER,
     ip_v6 TEXT,
     ip_v6_port_disc INTEGER,
     ip_v6_port_rlpx INTEGER,
+    addr_updated INTEGER NOT NULL,
+
     compat_fork INTEGER,
+    compat_fork_updated INTEGER,
+
     client_id TEXT,
     handshake_err TEXT,
-    taken_last INTEGER,
-    updated INTEGER NOT NULL
+    handshake_updated INTEGER,
+    
+    taken_last INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_nodes_taken_last ON nodes (taken_last);
@@ -50,7 +56,7 @@ INSERT INTO nodes(
     ip_v6,
     ip_v6_port_disc,
     ip_v6_port_rlpx,
-    updated
+    addr_updated
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
     ip = excluded.ip,
@@ -59,19 +65,19 @@ ON CONFLICT(id) DO UPDATE SET
     ip_v6 = excluded.ip_v6,
     ip_v6_port_disc = excluded.ip_v6_port_disc,
     ip_v6_port_rlpx = excluded.ip_v6_port_rlpx,
-    updated = excluded.updated
+    addr_updated = excluded.addr_updated
 `
 
 	sqlUpdateForkCompatibility = `
-UPDATE nodes SET compat_fork = ?, updated = ? WHERE id = ?
+UPDATE nodes SET compat_fork = ?, compat_fork_updated = ? WHERE id = ?
 `
 
 	sqlUpdateClientID = `
-UPDATE nodes SET client_id = ?, updated = ? WHERE id = ?
+UPDATE nodes SET client_id = ?, handshake_updated = ? WHERE id = ?
 `
 
 	sqlUpdateHandshakeError = `
-UPDATE nodes SET handshake_err = ?, updated = ? WHERE id = ?
+UPDATE nodes SET handshake_err = ?, handshake_updated = ? WHERE id = ?
 `
 
 	sqlFindCandidates = `
