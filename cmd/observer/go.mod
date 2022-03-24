@@ -6,7 +6,7 @@ replace github.com/ledgerwatch/erigon => ../..
 
 require (
 	github.com/ledgerwatch/erigon v0.0.0-00010101000000-000000000000
-	github.com/ledgerwatch/erigon-lib v0.0.0-20220321064242-9e5a50069c63
+	github.com/ledgerwatch/erigon-lib v0.0.0-20220323143513-4e8d577d1d00
 	github.com/ledgerwatch/log/v3 v3.4.1
 	github.com/spf13/cobra v1.4.0
 	github.com/stretchr/testify v1.7.1
