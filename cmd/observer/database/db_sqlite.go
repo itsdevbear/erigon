@@ -123,6 +123,11 @@ UPDATE nodes SET taken_last = ? WHERE id IN (123)
 SELECT COUNT(id) FROM nodes
 `
 
+	sqlCountCompatibleNodes = `
+SELECT COUNT(id) FROM nodes
+WHERE (compat_fork == TRUE) OR (compat_fork IS NULL)
+`
+
 	sqlCountIPs = `
 SELECT COUNT(DISTINCT ip) FROM nodes
 `
@@ -379,6 +384,15 @@ func (db *DBSQLite) CountNodes(ctx context.Context) (uint, error) {
 	var count uint
 	if err := row.Scan(&count); err != nil {
 		return 0, fmt.Errorf("CountNodes failed: %w", err)
+	}
+	return count, nil
+}
+
+func (db *DBSQLite) CountCompatibleNodes(ctx context.Context) (uint, error) {
+	row := db.db.QueryRowContext(ctx, sqlCountCompatibleNodes)
+	var count uint
+	if err := row.Scan(&count); err != nil {
+		return 0, fmt.Errorf("CountCompatibleNodes failed: %w", err)
 	}
 	return count, nil
 }
