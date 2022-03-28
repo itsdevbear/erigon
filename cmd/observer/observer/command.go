@@ -117,7 +117,11 @@ func (command *Command) ExecuteContext(ctx context.Context, runFunc func(ctx con
 		// apply debug flags
 		return utils.SetupCobra(cmd)
 	}
+	command.command.PersistentPostRun = func(cmd *cobra.Command, args []string) {
+		debug.Exit()
+	}
 	command.command.RunE = func(cmd *cobra.Command, args []string) error {
+		defer debug.Exit()
 		return runFunc(cmd.Context(), command.flags)
 	}
 	return command.command.ExecuteContext(ctx)
