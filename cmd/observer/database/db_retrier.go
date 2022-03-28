@@ -46,21 +46,6 @@ func (db DBRetrier) UpsertNodeAddr(ctx context.Context, id NodeID, addr NodeAddr
 	return err
 }
 
-func (db DBRetrier) UpdateForkCompatibility(ctx context.Context, id NodeID, isCompatFork bool) error {
-	var err error
-	for i := 0; i <= retryCount; i += 1 {
-		if i > 0 {
-			db.log.Trace("retrying UpdateForkCompatibility", "attempt", i, "err", err)
-		}
-		utils.Sleep(ctx, retryBackoffTime(i))
-		err = db.db.UpdateForkCompatibility(ctx, id, isCompatFork)
-		if (err == nil) || !db.db.IsConflictError(err) {
-			break
-		}
-	}
-	return err
-}
-
 func (db DBRetrier) UpdateClientID(ctx context.Context, id NodeID, clientID string) error {
 	var err error
 	for i := 0; i <= retryCount; i += 1 {
@@ -91,8 +76,23 @@ func (db DBRetrier) UpdateHandshakeError(ctx context.Context, id NodeID, handsha
 	return err
 }
 
-func (db DBRetrier) TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) (map[NodeID]NodeAddr, error) {
-	var result map[NodeID]NodeAddr
+func (db DBRetrier) UpdateForkCompatibility(ctx context.Context, id NodeID, isCompatFork bool) error {
+	var err error
+	for i := 0; i <= retryCount; i += 1 {
+		if i > 0 {
+			db.log.Trace("retrying UpdateForkCompatibility", "attempt", i, "err", err)
+		}
+		utils.Sleep(ctx, retryBackoffTime(i))
+		err = db.db.UpdateForkCompatibility(ctx, id, isCompatFork)
+		if (err == nil) || !db.db.IsConflictError(err) {
+			break
+		}
+	}
+	return err
+}
+
+func (db DBRetrier) TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) ([]NodeID, error) {
+	var result []NodeID
 	var err error
 	for i := 0; i <= retryCount; i += 1 {
 		if i > 0 {
@@ -105,6 +105,10 @@ func (db DBRetrier) TakeCandidates(ctx context.Context, minUnusedDuration time.D
 		}
 	}
 	return result, err
+}
+
+func (db DBRetrier) FindNodeAddr(ctx context.Context, id NodeID) (*NodeAddr, error) {
+	return db.db.FindNodeAddr(ctx, id)
 }
 
 func (db DBRetrier) FindHandshakeLastTry(ctx context.Context, id NodeID) (*HandshakeTry, error) {

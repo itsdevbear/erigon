@@ -28,12 +28,12 @@ func TestDBSQLiteInsertAndFind(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, 1, len(candidates))
 
-	var candidateID NodeID
-	var candidate NodeAddr
-	for candidateID, candidate = range candidates {
-	}
-
+	candidateID := candidates[0]
 	assert.Equal(t, id, candidateID)
+
+	candidate, err := db.FindNodeAddr(ctx, candidateID)
+	require.Nil(t, err)
+
 	assert.Equal(t, addr.IP, candidate.IP)
 	assert.Equal(t, addr.PortDisc, candidate.PortDisc)
 	assert.Equal(t, addr.PortRLPx, candidate.PortRLPx)

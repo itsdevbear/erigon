@@ -48,7 +48,7 @@ CREATE INDEX IF NOT EXISTS idx_nodes_ip_v6 ON nodes (ip_v6);
 CREATE INDEX IF NOT EXISTS idx_nodes_compat_fork ON nodes (compat_fork);
 `
 
-	sqlUpsertNode = `
+	sqlUpsertNodeAddr = `
 INSERT INTO nodes(
 	id,
     ip,
@@ -69,8 +69,16 @@ ON CONFLICT(id) DO UPDATE SET
     addr_updated = excluded.addr_updated
 `
 
-	sqlUpdateForkCompatibility = `
-UPDATE nodes SET compat_fork = ?, compat_fork_updated = ? WHERE id = ?
+	sqlFindNodeAddr = `
+SELECT
+    ip,
+    port_disc,
+    port_rlpx,
+    ip_v6,
+    ip_v6_port_disc,
+    ip_v6_port_rlpx
+FROM nodes
+WHERE id = ?
 `
 
 	sqlUpdateClientID = `
@@ -99,16 +107,12 @@ FROM nodes
 WHERE id = ?
 `
 
+	sqlUpdateForkCompatibility = `
+UPDATE nodes SET compat_fork = ?, compat_fork_updated = ? WHERE id = ?
+`
+
 	sqlFindCandidates = `
-SELECT
-	id,
-    ip,
-    port_disc,
-    port_rlpx,
-    ip_v6,
-    ip_v6_port_disc,
-    ip_v6_port_rlpx
-FROM nodes
+SELECT id FROM nodes
 WHERE ((taken_last IS NULL) OR (taken_last < ?))
 	AND ((compat_fork == TRUE) OR (compat_fork IS NULL))
 ORDER BY taken_last
@@ -191,7 +195,7 @@ func (db *DBSQLite) UpsertNodeAddr(ctx context.Context, id NodeID, addr NodeAddr
 
 	updated := time.Now().Unix()
 
-	_, err := db.db.ExecContext(ctx, sqlUpsertNode,
+	_, err := db.db.ExecContext(ctx, sqlUpsertNodeAddr,
 		id,
 		ip, portDisc, portRLPx,
 		ipV6, ipV6PortDisc, ipV6PortRLPx,
@@ -202,14 +206,64 @@ func (db *DBSQLite) UpsertNodeAddr(ctx context.Context, id NodeID, addr NodeAddr
 	return nil
 }
 
-func (db *DBSQLite) UpdateForkCompatibility(ctx context.Context, id NodeID, isCompatFork bool) error {
-	updated := time.Now().Unix()
+func (db *DBSQLite) FindNodeAddr(ctx context.Context, id NodeID) (*NodeAddr, error) {
+	row := db.db.QueryRowContext(ctx, sqlFindNodeAddr, id)
 
-	_, err := db.db.ExecContext(ctx, sqlUpdateForkCompatibility, isCompatFork, updated, id)
+	var ip sql.NullString
+	var portDisc sql.NullInt32
+	var portRLPx sql.NullInt32
+	var ipV6 sql.NullString
+	var ipV6PortDisc sql.NullInt32
+	var ipV6PortRLPx sql.NullInt32
+
+	err := row.Scan(
+		&ip,
+		&portDisc,
+		&portRLPx,
+		&ipV6,
+		&ipV6PortDisc,
+		&ipV6PortRLPx)
 	if err != nil {
-		return fmt.Errorf("UpdateForkCompatibility failed to update a node: %w", err)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("FindNodeAddr failed: %w", err)
 	}
-	return nil
+
+	var addr NodeAddr
+
+	if ip.Valid {
+		value := net.ParseIP(ip.String)
+		if value == nil {
+			return nil, errors.New("FindNodeAddr failed to parse IP")
+		}
+		addr.IP = value
+	}
+	if ipV6.Valid {
+		value := net.ParseIP(ipV6.String)
+		if value == nil {
+			return nil, errors.New("FindNodeAddr failed to parse IPv6")
+		}
+		addr.IPv6.IP = value
+	}
+	if portDisc.Valid {
+		value := uint16(portDisc.Int32)
+		addr.PortDisc = value
+	}
+	if portRLPx.Valid {
+		value := uint16(portRLPx.Int32)
+		addr.PortRLPx = value
+	}
+	if ipV6PortDisc.Valid {
+		value := uint16(ipV6PortDisc.Int32)
+		addr.IPv6.PortDisc = value
+	}
+	if ipV6PortRLPx.Valid {
+		value := uint16(ipV6PortRLPx.Int32)
+		addr.IPv6.PortRLPx = value
+	}
+
+	return &addr, nil
 }
 
 func (db *DBSQLite) UpdateClientID(ctx context.Context, id NodeID, clientID string) error {
@@ -259,7 +313,17 @@ func (db *DBSQLite) FindHandshakeLastTry(ctx context.Context, id NodeID) (*Hands
 	return &try, nil
 }
 
-func (db *DBSQLite) FindCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) (map[NodeID]NodeAddr, error) {
+func (db *DBSQLite) UpdateForkCompatibility(ctx context.Context, id NodeID, isCompatFork bool) error {
+	updated := time.Now().Unix()
+
+	_, err := db.db.ExecContext(ctx, sqlUpdateForkCompatibility, isCompatFork, updated, id)
+	if err != nil {
+		return fmt.Errorf("UpdateForkCompatibility failed to update a node: %w", err)
+	}
+	return nil
+}
+
+func (db *DBSQLite) FindCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) ([]NodeID, error) {
 	takenLastBefore := time.Now().Add(-minUnusedDuration).Unix()
 	cursor, err := db.db.QueryContext(ctx, sqlFindCandidates, takenLastBefore, limit)
 	if err != nil {
@@ -269,57 +333,15 @@ func (db *DBSQLite) FindCandidates(ctx context.Context, minUnusedDuration time.D
 		_ = cursor.Close()
 	}()
 
-	nodes := make(map[NodeID]NodeAddr)
+	var nodes []NodeID
 	for cursor.Next() {
 		var id string
-		var ip sql.NullString
-		var portDisc sql.NullInt32
-		var portRLPx sql.NullInt32
-		var ipV6 sql.NullString
-		var ipV6PortDisc sql.NullInt32
-		var ipV6PortRLPx sql.NullInt32
-
-		err := cursor.Scan(&id,
-			&ip, &portDisc, &portRLPx,
-			&ipV6, &ipV6PortDisc, &ipV6PortRLPx)
+		err := cursor.Scan(&id)
 		if err != nil {
 			return nil, fmt.Errorf("FindCandidates failed to read candidate data: %w", err)
 		}
 
-		var addr NodeAddr
-
-		if ip.Valid {
-			value := net.ParseIP(ip.String)
-			if value == nil {
-				return nil, errors.New("FindCandidates failed to parse IP")
-			}
-			addr.IP = value
-		}
-		if ipV6.Valid {
-			value := net.ParseIP(ipV6.String)
-			if value == nil {
-				return nil, errors.New("FindCandidates failed to parse IPv6")
-			}
-			addr.IPv6.IP = value
-		}
-		if portDisc.Valid {
-			value := uint16(portDisc.Int32)
-			addr.PortDisc = value
-		}
-		if portRLPx.Valid {
-			value := uint16(portRLPx.Int32)
-			addr.PortRLPx = value
-		}
-		if ipV6PortDisc.Valid {
-			value := uint16(ipV6PortDisc.Int32)
-			addr.IPv6.PortDisc = value
-		}
-		if ipV6PortRLPx.Valid {
-			value := uint16(ipV6PortRLPx.Int32)
-			addr.IPv6.PortRLPx = value
-		}
-
-		nodes[NodeID(id)] = addr
+		nodes = append(nodes, NodeID(id))
 	}
 
 	if err := cursor.Err(); err != nil {
@@ -346,19 +368,18 @@ func (db *DBSQLite) MarkTakenNodes(ctx context.Context, ids []NodeID) error {
 	return nil
 }
 
-func (db *DBSQLite) TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) (map[NodeID]NodeAddr, error) {
+func (db *DBSQLite) TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) ([]NodeID, error) {
 	tx, err := db.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("TakeCandidates failed to start transaction: %w", err)
 	}
 
-	nodes, err := db.FindCandidates(ctx, minUnusedDuration, limit)
+	ids, err := db.FindCandidates(ctx, minUnusedDuration, limit)
 	if err != nil {
 		_ = tx.Rollback()
 		return nil, err
 	}
 
-	ids := keysOfIDToAddrMap(nodes)
 	err = db.MarkTakenNodes(ctx, ids)
 	if err != nil {
 		_ = tx.Rollback()
@@ -369,7 +390,7 @@ func (db *DBSQLite) TakeCandidates(ctx context.Context, minUnusedDuration time.D
 	if err != nil {
 		return nil, fmt.Errorf("TakeCandidates failed to commit transaction: %w", err)
 	}
-	return nodes, nil
+	return ids, nil
 }
 
 func (db *DBSQLite) IsConflictError(err error) bool {
@@ -440,12 +461,4 @@ func stringsToAny(strValues []NodeID) []interface{} {
 		values = append(values, value)
 	}
 	return values
-}
-
-func keysOfIDToAddrMap(m map[NodeID]NodeAddr) []NodeID {
-	keys := make([]NodeID, 0, len(m))
-	for key := range m {
-		keys = append(keys, key)
-	}
-	return keys
 }

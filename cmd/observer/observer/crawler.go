@@ -56,8 +56,13 @@ func NewCrawler(
 	return &instance, nil
 }
 
-func (crawler *Crawler) startSelectCandidates(ctx context.Context) <-chan *enode.Node {
-	nodes := make(chan *enode.Node)
+type candidateNode struct {
+	id database.NodeID
+	node *enode.Node
+}
+
+func (crawler *Crawler) startSelectCandidates(ctx context.Context) <-chan candidateNode {
+	nodes := make(chan candidateNode)
 	go func() {
 		err := crawler.selectCandidates(ctx, nodes)
 		if (err != nil) && !errors.Is(err, context.Canceled) {
@@ -68,12 +73,17 @@ func (crawler *Crawler) startSelectCandidates(ctx context.Context) <-chan *enode
 	return nodes
 }
 
-func (crawler *Crawler) selectCandidates(ctx context.Context, nodes chan<- *enode.Node) error {
+func (crawler *Crawler) selectCandidates(ctx context.Context, nodes chan<- candidateNode) error {
 	for _, node := range crawler.config.Bootnodes {
+		id, err := nodeID(node)
+		if err != nil {
+			return fmt.Errorf("failed to get a bootnode ID: %w", err)
+		}
+
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case nodes <- node:
+		case nodes <- candidateNode{id, node}:
 		}
 	}
 
@@ -89,16 +99,11 @@ func (crawler *Crawler) selectCandidates(ctx context.Context, nodes chan<- *enod
 			utils.Sleep(ctx, 1*time.Second)
 		}
 
-		for id, addr := range candidates {
-			node, err := makeNodeFromAddr(id, addr)
-			if err != nil {
-				return err
-			}
-
+		for _, id := range candidates {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case nodes <- node:
+			case nodes <- candidateNode{id, nil}:
 			}
 		}
 	}
@@ -110,7 +115,7 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 	nodes := crawler.startSelectCandidates(ctx)
 	sem := semaphore.NewWeighted(int64(crawler.config.ConcurrencyLimit))
 
-	for node := range nodes {
+	for candidateNode := range nodes {
 		if err := sem.Acquire(ctx, 1); err != nil {
 			if !errors.Is(err, context.Canceled) {
 				return fmt.Errorf("failed to acquire semaphore: %w", err)
@@ -119,13 +124,23 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 			}
 		}
 
+		id := candidateNode.id
+		node := candidateNode.node
+
+		if node == nil {
+			nodeAddr, err := crawler.db.FindNodeAddr(ctx, id)
+			if err != nil {
+				return fmt.Errorf("failed to get the node address: %w", err)
+			}
+
+			node, err = makeNodeFromAddr(id, *nodeAddr)
+			if err != nil {
+				return fmt.Errorf("failed to make node from node address: %w", err)
+			}
+		}
+
 		nodeDesc := node.URLv4()
 		logger := crawler.log.New("node", nodeDesc)
-
-		id, err := nodeID(node)
-		if err != nil {
-			return fmt.Errorf("failed to get node ID: %w", err)
-		}
 
 		handshakeLastTry, err := crawler.db.FindHandshakeLastTry(ctx, id)
 		if err != nil {

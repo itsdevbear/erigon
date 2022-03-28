@@ -27,17 +27,19 @@ type HandshakeTry struct {
 
 type DB interface {
 	UpsertNodeAddr(ctx context.Context, id NodeID, addr NodeAddr) error
-	UpdateForkCompatibility(ctx context.Context, id NodeID, isCompatFork bool) error
+	FindNodeAddr(ctx context.Context, id NodeID) (*NodeAddr, error)
+
 	UpdateClientID(ctx context.Context, id NodeID, clientID string) error
 	UpdateHandshakeError(ctx context.Context, id NodeID, handshakeErr string) error
-
 	FindHandshakeLastTry(ctx context.Context, id NodeID) (*HandshakeTry, error)
 
-	FindCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) (map[NodeID]NodeAddr, error)
+	UpdateForkCompatibility(ctx context.Context, id NodeID, isCompatFork bool) error
+
+	FindCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) ([]NodeID, error)
 	MarkTakenNodes(ctx context.Context, nodes []NodeID) error
 
 	// TakeCandidates runs FindCandidates + MarkTakenNodes in a transaction.
-	TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) (map[NodeID]NodeAddr, error)
+	TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) ([]NodeID, error)
 
 	IsConflictError(err error) bool
 
