@@ -16,6 +16,10 @@ func clientNameBlacklist() []string {
 		// https://egem.io
 		"egem",
 
+		// energi3/v3.1.1-stable/linux-amd64/go1.15.8
+		// https://energi.world
+		"energi3",
+
 		// Gero/v1.1.3-dev-f8efb930/linux-amd64/go1.13.4
 		// https://sero.cash
 		"Gero",
