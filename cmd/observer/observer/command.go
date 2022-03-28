@@ -20,7 +20,9 @@ type CommandFlags struct {
 	NodeKeyHex         string
 	Bootnodes          string
 	CrawlerConcurrency uint
-	RefreshTimeout	   time.Duration
+	RefreshTimeout     time.Duration
+	KeygenTimeout      time.Duration
+	KeygenConcurrency  uint
 }
 
 type Command struct {
@@ -49,6 +51,8 @@ func NewCommand() *Command {
 	instance.withBootnodes()
 	instance.withCrawlerConcurrency()
 	instance.withRefreshTimeout()
+	instance.withKeygenTimeout()
+	instance.withKeygenConcurrency()
 
 	return &instance
 }
@@ -98,7 +102,7 @@ func (command *Command) withCrawlerConcurrency() {
 	flag := cli.UintFlag{
 		Name:  "crawler-concurrency",
 		Usage: "A number of maximum parallel node interrogations",
-		Value: uint(runtime.GOMAXPROCS(0)) * 10,
+		Value: uint(runtime.GOMAXPROCS(-1)) * 10,
 	}
 	command.command.Flags().UintVar(&command.flags.CrawlerConcurrency, flag.Name, flag.Value, flag.Usage)
 }
@@ -110,6 +114,24 @@ func (command *Command) withRefreshTimeout() {
 		Value: 30 * time.Minute,
 	}
 	command.command.Flags().DurationVar(&command.flags.RefreshTimeout, flag.Name, flag.Value, flag.Usage)
+}
+
+func (command *Command) withKeygenTimeout() {
+	flag := cli.DurationFlag{
+		Name:  "keygen-timeout",
+		Usage: "How much time can be used to generate node bucket keys",
+		Value: 10 * time.Second,
+	}
+	command.command.Flags().DurationVar(&command.flags.KeygenTimeout, flag.Name, flag.Value, flag.Usage)
+}
+
+func (command *Command) withKeygenConcurrency() {
+	flag := cli.UintFlag{
+		Name:  "keygen-concurrency",
+		Usage: "How many parallel goroutines can be used by the node bucket keys generator",
+		Value: uint(runtime.GOMAXPROCS(-1)),
+	}
+	command.command.Flags().UintVar(&command.flags.KeygenConcurrency, flag.Name, flag.Value, flag.Usage)
 }
 
 func (command *Command) ExecuteContext(ctx context.Context, runFunc func(ctx context.Context, flags CommandFlags) error) error {

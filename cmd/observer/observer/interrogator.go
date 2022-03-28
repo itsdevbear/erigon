@@ -29,6 +29,9 @@ type Interrogator struct {
 	handshakeLastTry        *database.HandshakeTry
 	handshakeRefreshTimeout time.Duration
 
+	keygenTimeout      time.Duration
+	keygenConcurrency  uint
+
 	log log.Logger
 }
 
@@ -47,6 +50,8 @@ func NewInterrogator(
 	privateKey *ecdsa.PrivateKey,
 	handshakeLastTry *database.HandshakeTry,
 	handshakeRefreshTimeout time.Duration,
+	keygenTimeout time.Duration,
+	keygenConcurrency uint,
 	logger log.Logger,
 ) (*Interrogator, error) {
 	instance := Interrogator{
@@ -56,6 +61,8 @@ func NewInterrogator(
 		privateKey,
 		handshakeLastTry,
 		handshakeRefreshTimeout,
+		keygenTimeout,
+		keygenConcurrency,
 		logger,
 	}
 	return &instance, nil
@@ -106,8 +113,13 @@ func (interrogator *Interrogator) Run(ctx context.Context) (*InterrogationResult
 		return &result, fmt.Errorf("incompatible client ID %s", *clientID)
 	}
 
-	keys := keygen(ctx, interrogator.node.Pubkey(), 10*time.Second, interrogator.log)
+	keys := keygen(ctx, interrogator.node.Pubkey(), interrogator.keygenTimeout, interrogator.keygenConcurrency, interrogator.log)
 	interrogator.log.Trace(fmt.Sprintf("Generated %d keys", len(keys)))
+	if len(keys) < 13 {
+		msg := "Generated just %d keys within a given timeout and concurrency (expected 16-17). " +
+			"If this happens too often, try to increase keygen-timeout/keygen-concurrency parameters."
+		interrogator.log.Warn(fmt.Sprintf(msg, len(keys)))
+	}
 
 	peersByID := make(map[enode.ID]*enode.Node)
 	for _, key := range keys {

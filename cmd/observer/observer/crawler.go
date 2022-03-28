@@ -29,6 +29,9 @@ type CrawlerConfig struct {
 	PrivateKey       *ecdsa.PrivateKey
 	ConcurrencyLimit uint
 	RefreshTimeout   time.Duration
+
+	KeygenTimeout     time.Duration
+	KeygenConcurrency uint
 }
 
 func NewCrawler(
@@ -158,6 +161,8 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 			crawler.config.PrivateKey,
 			handshakeLastTry,
 			handshakeRefreshTimeout,
+			crawler.config.KeygenTimeout,
+			crawler.config.KeygenConcurrency,
 			logger)
 		if err != nil {
 			return fmt.Errorf("failed to create Interrogator for node %s: %w", nodeDesc, err)

@@ -6,16 +6,21 @@ import (
 	"github.com/ledgerwatch/erigon/crypto"
 	"github.com/ledgerwatch/erigon/p2p/enode"
 	"github.com/ledgerwatch/log/v3"
-	"runtime"
 	"time"
 )
 
-func keygen(parentContext context.Context, targetKey *ecdsa.PublicKey, timeout time.Duration, logger log.Logger) []*ecdsa.PublicKey {
+func keygen(
+	parentContext context.Context,
+	targetKey *ecdsa.PublicKey,
+	timeout time.Duration,
+	concurrencyLimit uint,
+	logger log.Logger,
+) []*ecdsa.PublicKey {
 	ctx, cancel := context.WithTimeout(parentContext, timeout)
 	defer cancel()
 
 	targetID := enode.PubkeyToIDV4(targetKey)
-	cpus := runtime.GOMAXPROCS(-1)
+	cpus := concurrencyLimit
 
 	type result struct {
 		key      *ecdsa.PublicKey
@@ -24,7 +29,7 @@ func keygen(parentContext context.Context, targetKey *ecdsa.PublicKey, timeout t
 
 	generatedKeys := make(chan result, cpus)
 
-	for i := 0; i < cpus; i++ {
+	for i := uint(0); i < cpus; i++ {
 		go func() {
 			for ctx.Err() == nil {
 				keyPair, err := crypto.GenerateKey()

@@ -36,6 +36,8 @@ func mainWithFlags(ctx context.Context, flags observer.CommandFlags) error {
 		server.PrivateKey(),
 		flags.CrawlerConcurrency,
 		flags.RefreshTimeout,
+		flags.KeygenTimeout,
+		flags.KeygenConcurrency,
 	}
 
 	crawler, err := observer.NewCrawler(discV4, db, crawlerConfig, log.Root())
