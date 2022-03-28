@@ -22,6 +22,9 @@ func CreateClientsReport(ctx context.Context, db database.DB) (*ClientsReport, e
 	unknownCount := uint(0)
 	enumFunc := func(clientID *string) {
 		if clientID != nil {
+			if observer.IsClientIDBlacklisted(*clientID) {
+				return
+			}
 			clientName := observer.NameFromClientID(*clientID)
 			groups[clientName] += 1
 		} else {
