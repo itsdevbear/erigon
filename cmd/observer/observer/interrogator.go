@@ -117,6 +117,9 @@ func (interrogator *Interrogator) Run(ctx context.Context) (*InterrogationResult
 		}
 
 		for _, node := range neighbors {
+			if node.Incomplete() {
+				continue
+			}
 			peersByID[node.ID()] = node
 		}
 
