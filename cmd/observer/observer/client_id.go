@@ -75,6 +75,10 @@ func clientNameBlacklist() []string {
 }
 
 func IsClientIDBlacklisted(clientID string) bool {
+	// some unknown clients return an empty string
+	if clientID == "" {
+		return true
+	}
 	for _, clientName := range clientNameBlacklist() {
 		if strings.HasPrefix(clientID, clientName) {
 			return true
