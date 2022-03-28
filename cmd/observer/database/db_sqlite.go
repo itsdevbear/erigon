@@ -115,6 +115,7 @@ UPDATE nodes SET compat_fork = ?, compat_fork_updated = ? WHERE id = ?
 SELECT id FROM nodes
 WHERE ((taken_last IS NULL) OR (taken_last < ?))
 	AND ((compat_fork == TRUE) OR (compat_fork IS NULL))
+	AND (handshake_try <= ?)
 ORDER BY taken_last
 LIMIT ?
 `
@@ -323,9 +324,9 @@ func (db *DBSQLite) UpdateForkCompatibility(ctx context.Context, id NodeID, isCo
 	return nil
 }
 
-func (db *DBSQLite) FindCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) ([]NodeID, error) {
+func (db *DBSQLite) FindCandidates(ctx context.Context, minUnusedDuration time.Duration, maxHandshakeTries uint, limit uint) ([]NodeID, error) {
 	takenLastBefore := time.Now().Add(-minUnusedDuration).Unix()
-	cursor, err := db.db.QueryContext(ctx, sqlFindCandidates, takenLastBefore, limit)
+	cursor, err := db.db.QueryContext(ctx, sqlFindCandidates, takenLastBefore, maxHandshakeTries, limit)
 	if err != nil {
 		return nil, fmt.Errorf("FindCandidates failed to query candidates: %w", err)
 	}
@@ -368,13 +369,13 @@ func (db *DBSQLite) MarkTakenNodes(ctx context.Context, ids []NodeID) error {
 	return nil
 }
 
-func (db *DBSQLite) TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) ([]NodeID, error) {
+func (db *DBSQLite) TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, maxHandshakeTries uint, limit uint) ([]NodeID, error) {
 	tx, err := db.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("TakeCandidates failed to start transaction: %w", err)
 	}
 
-	ids, err := db.FindCandidates(ctx, minUnusedDuration, limit)
+	ids, err := db.FindCandidates(ctx, minUnusedDuration, maxHandshakeTries, limit)
 	if err != nil {
 		_ = tx.Rollback()
 		return nil, err

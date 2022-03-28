@@ -89,8 +89,9 @@ func (crawler *Crawler) selectCandidates(ctx context.Context, nodes chan<- candi
 
 	for ctx.Err() == nil {
 		refreshTimeout := crawler.config.RefreshTimeout
+		maxHandshakeTries := uint(10)
 		limit := crawler.config.ConcurrencyLimit
-		candidates, err := crawler.db.TakeCandidates(ctx, refreshTimeout, limit)
+		candidates, err := crawler.db.TakeCandidates(ctx, refreshTimeout, maxHandshakeTries, limit)
 		if err != nil {
 			return err
 		}

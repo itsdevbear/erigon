@@ -35,11 +35,11 @@ type DB interface {
 
 	UpdateForkCompatibility(ctx context.Context, id NodeID, isCompatFork bool) error
 
-	FindCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) ([]NodeID, error)
+	FindCandidates(ctx context.Context, minUnusedDuration time.Duration, maxHandshakeTries uint, limit uint) ([]NodeID, error)
 	MarkTakenNodes(ctx context.Context, nodes []NodeID) error
 
 	// TakeCandidates runs FindCandidates + MarkTakenNodes in a transaction.
-	TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) ([]NodeID, error)
+	TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, maxHandshakeTries uint, limit uint) ([]NodeID, error)
 
 	IsConflictError(err error) bool
 

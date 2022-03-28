@@ -91,7 +91,7 @@ func (db DBRetrier) UpdateForkCompatibility(ctx context.Context, id NodeID, isCo
 	return err
 }
 
-func (db DBRetrier) TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, limit uint) ([]NodeID, error) {
+func (db DBRetrier) TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, maxHandshakeTries uint, limit uint) ([]NodeID, error) {
 	var result []NodeID
 	var err error
 	for i := 0; i <= retryCount; i += 1 {
@@ -99,7 +99,7 @@ func (db DBRetrier) TakeCandidates(ctx context.Context, minUnusedDuration time.D
 			db.log.Trace("retrying TakeCandidates", "attempt", i, "err", err)
 		}
 		utils.Sleep(ctx, retryBackoffTime(i))
-		result, err = db.db.TakeCandidates(ctx, minUnusedDuration, limit)
+		result, err = db.db.TakeCandidates(ctx, minUnusedDuration, maxHandshakeTries, limit)
 		if (err == nil) || !db.db.IsConflictError(err) {
 			break
 		}
