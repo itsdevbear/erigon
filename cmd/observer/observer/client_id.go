@@ -8,6 +8,10 @@ func clientNameBlacklist() []string {
 		// https://polygon.technology
 		"bor",
 
+		// Cypher/v1.9.24-unstable-a7d8c0f9/linux-amd64/go1.11
+		// unknown, but it's likely outdated since almost all nodes are running on go 1.11 (2018)
+		"Cypher",
+
 		// Ecoball/v1.0.2-stable-ac03aee-20211125/x86_64-linux-gnu/rustc1.52.1
 		// https://ecoball.org
 		"Ecoball",
@@ -20,6 +24,10 @@ func clientNameBlacklist() []string {
 		// https://energi.world
 		"energi3",
 
+		// Gddm/v0.8.1-master-7155d9dd/linux-amd64/go1.9.2
+		// unknown, but it's likely outdated since all nodes are running on go 1.9 (2017)
+		"Gddm",
+
 		// Gero/v1.1.3-dev-f8efb930/linux-amd64/go1.13.4
 		// https://sero.cash
 		"Gero",
@@ -28,9 +36,21 @@ func clientNameBlacklist() []string {
 		// https://ethersocial.org
 		"Gesn",
 
+		// Gnekonium/v1.6.6-stable-820982d6/linux-amd64/go1.9.2
+		// https://nekonium.github.io
+		"Gnekonium",
+
+		// go-corex/v1.0.0-rc.1-6197c8bf-1638348709/linux-amd64/go1.17.3
+		// https://www.corexchain.io
+		"go-corex",
+
 		// go-opera/v1.1.0-rc.4-91951f74-1647353617/linux-amd64/go1.17.8
 		// https://www.fantom.foundation
 		"go-opera",
+
+		// go-photon/v1.0.2-rc.5-32a52936-1646808549/linux-amd64/go1.17.8
+		// https://github.com/TechPay-io/go-photon
+		"go-photon",
 
 		// GoChain/v4.0.2/linux-amd64/go1.17.3
 		// https://gochain.io
