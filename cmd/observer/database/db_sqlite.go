@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS nodes (
     handshake_try INTEGER NOT NULL DEFAULT 0,
     handshake_updated INTEGER,
     
+    neighbor_keys TEXT,
+    
     taken_last INTEGER
 );
 
@@ -109,6 +111,14 @@ WHERE id = ?
 
 	sqlUpdateForkCompatibility = `
 UPDATE nodes SET compat_fork = ?, compat_fork_updated = ? WHERE id = ?
+`
+
+	sqlUpdateNeighborBucketKeys = `
+UPDATE nodes SET neighbor_keys = ? WHERE id = ?
+`
+
+	sqlFindNeighborBucketKeys = `
+SELECT neighbor_keys FROM nodes WHERE id = ?
 `
 
 	sqlFindCandidates = `
@@ -322,6 +332,33 @@ func (db *DBSQLite) UpdateForkCompatibility(ctx context.Context, id NodeID, isCo
 		return fmt.Errorf("UpdateForkCompatibility failed to update a node: %w", err)
 	}
 	return nil
+}
+
+func (db *DBSQLite) UpdateNeighborBucketKeys(ctx context.Context, id NodeID, keys []string) error {
+	keysStr := strings.Join(keys, ",")
+
+	_, err := db.db.ExecContext(ctx, sqlUpdateNeighborBucketKeys, keysStr, id)
+	if err != nil {
+		return fmt.Errorf("UpdateNeighborBucketKeys failed to update a node: %w", err)
+	}
+	return nil
+}
+
+func (db *DBSQLite) FindNeighborBucketKeys(ctx context.Context, id NodeID) ([]string, error) {
+	row := db.db.QueryRowContext(ctx, sqlFindNeighborBucketKeys, id)
+
+	var keysStr sql.NullString
+	if err := row.Scan(&keysStr); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("FindNeighborBucketKeys failed: %w", err)
+	}
+
+	if !keysStr.Valid {
+		return nil, nil
+	}
+	return strings.Split(keysStr.String, ","), nil
 }
 
 func (db *DBSQLite) FindCandidates(ctx context.Context, minUnusedDuration time.Duration, maxHandshakeTries uint, limit uint) ([]NodeID, error) {

@@ -91,6 +91,21 @@ func (db DBRetrier) UpdateForkCompatibility(ctx context.Context, id NodeID, isCo
 	return err
 }
 
+func (db DBRetrier) UpdateNeighborBucketKeys(ctx context.Context, id NodeID, keys []string) error {
+	var err error
+	for i := 0; i <= retryCount; i += 1 {
+		if i > 0 {
+			db.log.Trace("retrying UpdateNeighborBucketKeys", "attempt", i, "err", err)
+		}
+		utils.Sleep(ctx, retryBackoffTime(i))
+		err = db.db.UpdateNeighborBucketKeys(ctx, id, keys)
+		if (err == nil) || !db.db.IsConflictError(err) {
+			break
+		}
+	}
+	return err
+}
+
 func (db DBRetrier) TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, maxHandshakeTries uint, limit uint) ([]NodeID, error) {
 	var result []NodeID
 	var err error
@@ -113,4 +128,8 @@ func (db DBRetrier) FindNodeAddr(ctx context.Context, id NodeID) (*NodeAddr, err
 
 func (db DBRetrier) FindHandshakeLastTry(ctx context.Context, id NodeID) (*HandshakeTry, error) {
 	return db.db.FindHandshakeLastTry(ctx, id)
+}
+
+func (db DBRetrier) FindNeighborBucketKeys(ctx context.Context, id NodeID) ([]string, error) {
+	return db.db.FindNeighborBucketKeys(ctx, id)
 }

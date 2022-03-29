@@ -35,6 +35,9 @@ type DB interface {
 
 	UpdateForkCompatibility(ctx context.Context, id NodeID, isCompatFork bool) error
 
+	UpdateNeighborBucketKeys(ctx context.Context, id NodeID, keys []string) error
+	FindNeighborBucketKeys(ctx context.Context, id NodeID) ([]string, error)
+
 	FindCandidates(ctx context.Context, minUnusedDuration time.Duration, maxHandshakeTries uint, limit uint) ([]NodeID, error)
 	MarkTakenNodes(ctx context.Context, nodes []NodeID) error
 

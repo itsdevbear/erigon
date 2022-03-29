@@ -33,6 +33,7 @@ type Interrogator struct {
 	keygenTimeout      time.Duration
 	keygenConcurrency  uint
 	keygenSemaphore    *semaphore.Weighted
+	keygenCachedKeys   []*ecdsa.PublicKey
 
 	log log.Logger
 }
@@ -40,9 +41,10 @@ type Interrogator struct {
 type InterrogationResult struct {
 	Node         *enode.Node
 	IsCompatFork *bool
-	Peers        []*enode.Node
 	ClientID     *string
 	HandshakeErr *HandshakeError
+	KeygenKeys   []*ecdsa.PublicKey
+	Peers        []*enode.Node
 }
 
 func NewInterrogator(
@@ -55,6 +57,7 @@ func NewInterrogator(
 	keygenTimeout time.Duration,
 	keygenConcurrency uint,
 	keygenSemaphore *semaphore.Weighted,
+	keygenCachedKeys []*ecdsa.PublicKey,
 	logger log.Logger,
 ) (*Interrogator, error) {
 	instance := Interrogator{
@@ -67,6 +70,7 @@ func NewInterrogator(
 		keygenTimeout,
 		keygenConcurrency,
 		keygenSemaphore,
+		keygenCachedKeys,
 		logger,
 	}
 	return &instance, nil
@@ -140,11 +144,22 @@ func (interrogator *Interrogator) Run(ctx context.Context) (*InterrogationResult
 
 	peers := valuesOfIDToNodeMap(peersByID)
 
-	result := InterrogationResult{interrogator.node, isCompatFork, peers, clientID, handshakeErr}
+	result := InterrogationResult{
+		interrogator.node,
+		isCompatFork,
+		clientID,
+		handshakeErr,
+		keys,
+		peers,
+	}
 	return &result, nil
 }
 
 func (interrogator *Interrogator) keygen(ctx context.Context) ([]*ecdsa.PublicKey, error) {
+	if interrogator.keygenCachedKeys != nil {
+		return interrogator.keygenCachedKeys, nil
+	}
+
 	if err := interrogator.keygenSemaphore.Acquire(ctx, 1); err != nil {
 		return nil, err
 	}

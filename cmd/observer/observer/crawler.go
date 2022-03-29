@@ -126,7 +126,7 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 	crawledCountLogDate := time.Now()
 	foundPeersCountPtr := new(uint64)
 
-	for candidateNode := range nodes {
+	for candidate := range nodes {
 		if err := sem.Acquire(ctx, 1); err != nil {
 			if !errors.Is(err, context.Canceled) {
 				return fmt.Errorf("failed to acquire semaphore: %w", err)
@@ -142,8 +142,8 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 			crawledCountLogDate = time.Now()
 		}
 
-		id := candidateNode.id
-		node := candidateNode.node
+		id := candidate.id
+		node := candidate.node
 
 		if node == nil {
 			nodeAddr, err := crawler.db.FindNodeAddr(ctx, id)
@@ -168,6 +168,15 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 		// the client ID doesn't need to be refreshed often
 		handshakeRefreshTimeout := 7 * 24 * time.Hour
 
+		keygenCachedHexKeys, err := crawler.db.FindNeighborBucketKeys(ctx, id)
+		if err != nil {
+			return fmt.Errorf("failed to get neighbor bucket keys: %w", err)
+		}
+		keygenCachedKeys, err := parseHexPublicKeys(keygenCachedHexKeys)
+		if err != nil {
+			return fmt.Errorf("failed to parse cached neighbor bucket keys: %w", err)
+		}
+
 		interrogator, err := NewInterrogator(
 			node,
 			crawler.transport,
@@ -178,6 +187,7 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 			crawler.config.KeygenTimeout,
 			crawler.config.KeygenConcurrency,
 			keygenSem,
+			keygenCachedKeys,
 			logger)
 		if err != nil {
 			return fmt.Errorf("failed to create Interrogator for node %s: %w", nodeDesc, err)
@@ -226,16 +236,6 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 				}
 			}
 
-			if (result != nil) && (result.HandshakeErr != nil) {
-				dbErr := crawler.db.UpdateHandshakeError(ctx, id, result.HandshakeErr.StringCode())
-				if dbErr != nil {
-					if !errors.Is(dbErr, context.Canceled) {
-						logger.Error("Failed to update handshake error", "err", dbErr)
-					}
-					return
-				}
-			}
-
 			if err != nil {
 				if !errors.Is(err, context.Canceled) {
 					var logFunc func(msg string, ctx ...interface{})
@@ -252,6 +252,27 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 					logFunc("Failed to interrogate node", "err", err)
 				}
 				return
+			}
+
+			if result.HandshakeErr != nil {
+				dbErr := crawler.db.UpdateHandshakeError(ctx, id, result.HandshakeErr.StringCode())
+				if dbErr != nil {
+					if !errors.Is(dbErr, context.Canceled) {
+						logger.Error("Failed to update handshake error", "err", dbErr)
+					}
+					return
+				}
+			}
+
+			if len(result.KeygenKeys) >= 15 {
+				keygenHexKeys := hexEncodePublicKeys(result.KeygenKeys)
+				dbErr := crawler.db.UpdateNeighborBucketKeys(ctx, id, keygenHexKeys)
+				if dbErr != nil {
+					if !errors.Is(dbErr, context.Canceled) {
+						logger.Error("Failed to update neighbor bucket keys", "err", dbErr)
+					}
+					return
+				}
 			}
 
 			peers := result.Peers
