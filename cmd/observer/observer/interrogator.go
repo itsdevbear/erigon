@@ -11,6 +11,7 @@ import (
 	"github.com/ledgerwatch/erigon/eth/protocols/eth"
 	"github.com/ledgerwatch/erigon/p2p/enode"
 	"github.com/ledgerwatch/log/v3"
+	"golang.org/x/sync/semaphore"
 	"time"
 )
 
@@ -31,6 +32,7 @@ type Interrogator struct {
 
 	keygenTimeout      time.Duration
 	keygenConcurrency  uint
+	keygenSemaphore    *semaphore.Weighted
 
 	log log.Logger
 }
@@ -52,6 +54,7 @@ func NewInterrogator(
 	handshakeRefreshTimeout time.Duration,
 	keygenTimeout time.Duration,
 	keygenConcurrency uint,
+	keygenSemaphore *semaphore.Weighted,
 	logger log.Logger,
 ) (*Interrogator, error) {
 	instance := Interrogator{
@@ -63,6 +66,7 @@ func NewInterrogator(
 		handshakeRefreshTimeout,
 		keygenTimeout,
 		keygenConcurrency,
+		keygenSemaphore,
 		logger,
 	}
 	return &instance, nil
@@ -113,14 +117,13 @@ func (interrogator *Interrogator) Run(ctx context.Context) (*InterrogationResult
 		return &result, fmt.Errorf("incompatible client ID %s", *clientID)
 	}
 
-	keys := keygen(ctx, interrogator.node.Pubkey(), interrogator.keygenTimeout, interrogator.keygenConcurrency, interrogator.log)
-	interrogator.log.Trace(fmt.Sprintf("Generated %d keys", len(keys)))
-	if len(keys) < 13 {
-		msg := "Generated just %d keys within a given timeout and concurrency (expected 16-17). " +
-			"If this happens too often, try to increase keygen-timeout/keygen-concurrency parameters."
-		interrogator.log.Warn(fmt.Sprintf(msg, len(keys)))
+	// keygen
+	keys, err := interrogator.keygen(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("keygen failed: %w", err)
 	}
 
+	// FindNode
 	peersByID := make(map[enode.ID]*enode.Node)
 	for _, key := range keys {
 		neighbors, err := interrogator.transport.FindNode(interrogator.node, key)
@@ -142,6 +145,28 @@ func (interrogator *Interrogator) Run(ctx context.Context) (*InterrogationResult
 
 	result := InterrogationResult{interrogator.node, isCompatFork, peers, clientID, handshakeErr}
 	return &result, nil
+}
+
+func (interrogator *Interrogator) keygen(ctx context.Context) ([]*ecdsa.PublicKey, error) {
+	if err := interrogator.keygenSemaphore.Acquire(ctx, 1); err != nil {
+		return nil, err
+	}
+	defer interrogator.keygenSemaphore.Release(1)
+
+	keys := keygen(
+		ctx,
+		interrogator.node.Pubkey(),
+		interrogator.keygenTimeout,
+		interrogator.keygenConcurrency,
+		interrogator.log)
+
+	interrogator.log.Trace(fmt.Sprintf("Generated %d keys", len(keys)))
+	if (len(keys) < 13) && (ctx.Err() == nil) {
+		msg := "Generated just %d keys within a given timeout and concurrency (expected 16-17). " +
+			"If this happens too often, try to increase keygen-timeout/keygen-concurrency parameters."
+		interrogator.log.Warn(fmt.Sprintf(msg, len(keys)))
+	}
+	return keys, ctx.Err()
 }
 
 func (interrogator *Interrogator) handshake(ctx context.Context) (*HelloMessage, *HandshakeError) {

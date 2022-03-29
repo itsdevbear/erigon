@@ -118,6 +118,8 @@ func (crawler *Crawler) selectCandidates(ctx context.Context, nodes chan<- candi
 func (crawler *Crawler) Run(ctx context.Context) error {
 	nodes := crawler.startSelectCandidates(ctx)
 	sem := semaphore.NewWeighted(int64(crawler.config.ConcurrencyLimit))
+	// allow only 1 keygen at a time
+	keygenSem := semaphore.NewWeighted(int64(1))
 
 	for candidateNode := range nodes {
 		if err := sem.Acquire(ctx, 1); err != nil {
@@ -163,6 +165,7 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 			handshakeRefreshTimeout,
 			crawler.config.KeygenTimeout,
 			crawler.config.KeygenConcurrency,
+			keygenSem,
 			logger)
 		if err != nil {
 			return fmt.Errorf("failed to create Interrogator for node %s: %w", nodeDesc, err)
