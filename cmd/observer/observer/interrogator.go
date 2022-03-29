@@ -73,7 +73,7 @@ func NewInterrogator(
 }
 
 func (interrogator *Interrogator) Run(ctx context.Context) (*InterrogationResult, *InterrogationError) {
-	interrogator.log.Info("Interrogating a node")
+	interrogator.log.Debug("Interrogating a node")
 
 	err := interrogator.transport.Ping(interrogator.node)
 	if err != nil {

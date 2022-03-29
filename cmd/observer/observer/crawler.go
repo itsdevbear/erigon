@@ -12,6 +12,7 @@ import (
 	"github.com/ledgerwatch/erigon/params"
 	"github.com/ledgerwatch/log/v3"
 	"golang.org/x/sync/semaphore"
+	"sync/atomic"
 	"time"
 )
 
@@ -121,6 +122,10 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 	// allow only 1 keygen at a time
 	keygenSem := semaphore.NewWeighted(int64(1))
 
+	crawledCount := 0
+	crawledCountLogDate := time.Now()
+	foundPeersCountPtr := new(uint64)
+
 	for candidateNode := range nodes {
 		if err := sem.Acquire(ctx, 1); err != nil {
 			if !errors.Is(err, context.Canceled) {
@@ -128,6 +133,13 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 			} else {
 				break
 			}
+		}
+
+		crawledCount++
+		if time.Since(crawledCountLogDate) > 10*time.Second {
+			foundPeersCount := atomic.LoadUint64(foundPeersCountPtr)
+			crawler.log.Info("Crawling", "crawledCount", crawledCount, "foundPeersCount", foundPeersCount)
+			crawledCountLogDate = time.Now()
 		}
 
 		id := candidateNode.id
@@ -243,7 +255,8 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 			}
 
 			peers := result.Peers
-			logger.Info(fmt.Sprintf("Got %d peers", len(peers)))
+			logger.Debug(fmt.Sprintf("Got %d peers", len(peers)))
+			atomic.AddUint64(foundPeersCountPtr, uint64(len(peers)))
 
 			for _, peer := range peers {
 				peerID, err := nodeID(peer)
