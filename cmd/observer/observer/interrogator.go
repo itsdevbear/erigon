@@ -72,12 +72,12 @@ func NewInterrogator(
 	return &instance, nil
 }
 
-func (interrogator *Interrogator) Run(ctx context.Context) (*InterrogationResult, error) {
+func (interrogator *Interrogator) Run(ctx context.Context) (*InterrogationResult, *InterrogationError) {
 	interrogator.log.Info("Interrogating a node")
 
 	err := interrogator.transport.Ping(interrogator.node)
 	if err != nil {
-		return nil, fmt.Errorf("ping-pong failed: %w", err)
+		return nil, NewInterrogationError(InterrogationErrorPing, err)
 	}
 
 	// request ENR
@@ -89,7 +89,7 @@ func (interrogator *Interrogator) Run(ctx context.Context) (*InterrogationResult
 		interrogator.log.Debug("Got ENR", "enr", enr)
 		forkID, err = eth.LoadENRForkID(enr.Record())
 		if err != nil {
-			return nil, err
+			return nil, NewInterrogationError(InterrogationErrorENRDecode, err)
 		}
 	}
 
@@ -100,8 +100,7 @@ func (interrogator *Interrogator) Run(ctx context.Context) (*InterrogationResult
 		isCompatFork = new(bool)
 		*isCompatFork = (err == nil) || !errors.Is(err, forkid.ErrLocalIncompatibleOrStale)
 		if !*isCompatFork {
-			result := InterrogationResult{interrogator.node, isCompatFork, nil, nil, nil}
-			return &result, fmt.Errorf("incompatible ENR fork ID %w", err)
+			return nil, NewInterrogationError(InterrogationErrorIncompatibleForkID, err)
 		}
 	}
 
@@ -112,15 +111,13 @@ func (interrogator *Interrogator) Run(ctx context.Context) (*InterrogationResult
 		clientID, handshakeErr = interrogator.tryRequestClientID(ctx)
 	}
 	if (clientID != nil) && IsClientIDBlacklisted(*clientID) {
-		isCompatFork := false
-		result := InterrogationResult{interrogator.node, &isCompatFork, nil, clientID, nil}
-		return &result, fmt.Errorf("incompatible client ID %s", *clientID)
+		return nil, NewInterrogationError(InterrogationErrorBlacklistedClientID, errors.New(*clientID))
 	}
 
 	// keygen
 	keys, err := interrogator.keygen(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("keygen failed: %w", err)
+		return nil, NewInterrogationError(InterrogationErrorKeygen, err)
 	}
 
 	// FindNode
@@ -128,7 +125,7 @@ func (interrogator *Interrogator) Run(ctx context.Context) (*InterrogationResult
 	for _, key := range keys {
 		neighbors, err := interrogator.transport.FindNode(interrogator.node, key)
 		if err != nil {
-			return nil, fmt.Errorf("FindNode request failed: %w", err)
+			return nil, NewInterrogationError(InterrogationErrorFindNode, err)
 		}
 
 		for _, node := range neighbors {

@@ -176,8 +176,18 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 
 			result, err := interrogator.Run(ctx)
 
-			if (result != nil) && (result.IsCompatFork != nil) {
-				dbErr := crawler.db.UpdateForkCompatibility(ctx, id, *result.IsCompatFork)
+			var isCompatFork *bool
+			if result != nil {
+				isCompatFork = result.IsCompatFork
+			} else if (err != nil) &&
+				((err.id == InterrogationErrorIncompatibleForkID) ||
+					(err.id == InterrogationErrorBlacklistedClientID)) {
+				isCompatFork = new(bool)
+				*isCompatFork = false
+			}
+
+			if isCompatFork != nil {
+				dbErr := crawler.db.UpdateForkCompatibility(ctx, id, *isCompatFork)
 				if dbErr != nil {
 					if !errors.Is(dbErr, context.Canceled) {
 						logger.Error("Failed to update fork compatibility", "err", dbErr)
@@ -186,8 +196,16 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 				}
 			}
 
-			if (result != nil) && (result.ClientID != nil) {
-				dbErr := crawler.db.UpdateClientID(ctx, id, *result.ClientID)
+			var clientID *string
+			if result != nil {
+				clientID = result.ClientID
+			} else if (err != nil) && (err.id == InterrogationErrorBlacklistedClientID) {
+				clientID = new(string)
+				*clientID = err.wrappedErr.Error()
+			}
+
+			if clientID != nil {
+				dbErr := crawler.db.UpdateClientID(ctx, id, *clientID)
 				if dbErr != nil {
 					if !errors.Is(dbErr, context.Canceled) {
 						logger.Error("Failed to update client ID", "err", dbErr)
@@ -208,9 +226,16 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 
 			if err != nil {
 				if !errors.Is(err, context.Canceled) {
-					logFunc := logger.Warn
-					if (result != nil) && (result.IsCompatFork != nil) && !*result.IsCompatFork {
+					var logFunc func(msg string, ctx ...interface{})
+					switch err.id {
+					case InterrogationErrorPing:
+						fallthrough
+					case InterrogationErrorIncompatibleForkID:
+						fallthrough
+					case InterrogationErrorBlacklistedClientID:
 						logFunc = logger.Debug
+					default:
+						logFunc = logger.Warn
 					}
 					logFunc("Failed to interrogate node", "err", err)
 				}

@@ -83,7 +83,7 @@ func (e *HandshakeError) Error() string {
 	case HandshakeErrorIDHelloDecode:
 		return fmt.Sprintf("handshake failed to parse Hello message: %v", e.wrappedErr)
 	default:
-		return ""
+		return "<unhandled HandshakeErrorID>"
 	}
 }
 
