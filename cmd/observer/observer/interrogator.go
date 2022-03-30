@@ -129,6 +129,9 @@ func (interrogator *Interrogator) Run(ctx context.Context) (*InterrogationResult
 	for _, key := range keys {
 		neighbors, err := interrogator.findNode(ctx, key)
 		if err != nil {
+			if isFindNodeTimeoutError(err) {
+				return nil, NewInterrogationError(InterrogationErrorFindNodeTimeout, err)
+			}
 			return nil, NewInterrogationError(InterrogationErrorFindNode, err)
 		}
 

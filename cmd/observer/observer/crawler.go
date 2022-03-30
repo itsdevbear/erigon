@@ -245,6 +245,8 @@ func (crawler *Crawler) Run(ctx context.Context) error {
 					case InterrogationErrorIncompatibleForkID:
 						fallthrough
 					case InterrogationErrorBlacklistedClientID:
+						fallthrough
+					case InterrogationErrorFindNodeTimeout:
 						logFunc = logger.Debug
 					default:
 						logFunc = logger.Warn

@@ -11,6 +11,7 @@ const (
 	InterrogationErrorBlacklistedClientID
 	InterrogationErrorKeygen
 	InterrogationErrorFindNode
+	InterrogationErrorFindNodeTimeout
 )
 
 type InterrogationError struct {
@@ -44,6 +45,8 @@ func (e *InterrogationError) Error() string {
 		return fmt.Sprintf("keygen failed: %v", e.wrappedErr)
 	case InterrogationErrorFindNode:
 		return fmt.Sprintf("FindNode request failed: %v", e.wrappedErr)
+	case InterrogationErrorFindNodeTimeout:
+		return fmt.Sprintf("FindNode request timeout: %v", e.wrappedErr)
 	default:
 		return "<unhandled InterrogationErrorID>"
 	}
