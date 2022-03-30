@@ -127,7 +127,7 @@ func (interrogator *Interrogator) Run(ctx context.Context) (*InterrogationResult
 	// FindNode
 	peersByID := make(map[enode.ID]*enode.Node)
 	for _, key := range keys {
-		neighbors, err := interrogator.transport.FindNode(interrogator.node, key)
+		neighbors, err := interrogator.findNode(ctx, key)
 		if err != nil {
 			return nil, NewInterrogationError(InterrogationErrorFindNode, err)
 		}
@@ -181,6 +181,19 @@ func (interrogator *Interrogator) keygen(ctx context.Context) ([]*ecdsa.PublicKe
 	return keys, ctx.Err()
 }
 
+func (interrogator *Interrogator) findNode(ctx context.Context, targetKey *ecdsa.PublicKey) ([]*enode.Node, error) {
+	delayForAttempt := func(attempt int) time.Duration { return 2 * time.Second }
+	resultAny, err := utils.Retry(ctx, 2, delayForAttempt, isFindNodeTimeoutError, interrogator.log, "FindNode", func(ctx context.Context) (interface{}, error) {
+		return interrogator.transport.FindNode(interrogator.node, targetKey)
+	})
+
+	if resultAny == nil {
+		return nil, err
+	}
+	result := resultAny.([]*enode.Node)
+	return result, err
+}
+
 func (interrogator *Interrogator) handshake(ctx context.Context) (*HelloMessage, *HandshakeError) {
 	node := interrogator.node
 	return Handshake(ctx, node.IP(), node.TCP(), node.Pubkey(), interrogator.privateKey)
@@ -203,6 +216,10 @@ func (interrogator *Interrogator) canRetryHandshake() bool {
 		return time.Since(interrogator.handshakeLastTry.Time) > interrogator.handshakeRefreshTimeout
 	}
 	return true
+}
+
+func isFindNodeTimeoutError(err error) bool {
+	return (err != nil) && (err.Error() == "RPC timeout")
 }
 
 func valuesOfIDToNodeMap(m map[enode.ID]*enode.Node) []*enode.Node {
