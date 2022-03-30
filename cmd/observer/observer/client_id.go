@@ -24,6 +24,10 @@ func clientNameBlacklist() []string {
 		// https://energi.world
 		"energi3",
 
+		// Gdbix/v1.5.3-fluxdbix-f6911ea5/linux/go1.8.3
+		// https://www.arabianchain.org
+		"Gdbix",
+
 		// Gddm/v0.8.1-master-7155d9dd/linux-amd64/go1.9.2
 		// unknown, but it's likely outdated since all nodes are running on go 1.9 (2017)
 		"Gddm",
@@ -35,6 +39,10 @@ func clientNameBlacklist() []string {
 		// Gesn/v0.3.13-stable-b6c12eb2/linux-amd64/go1.12.4
 		// https://ethersocial.org
 		"Gesn",
+
+		// Gexp/v1.10.8-stable-1eb55798/linux-amd64/go1.17
+		// https://expanse.tech
+		"Gexp",
 
 		// Gnekonium/v1.6.6-stable-820982d6/linux-amd64/go1.9.2
 		// https://nekonium.github.io
@@ -87,6 +95,10 @@ func clientNameBlacklist() []string {
 		// Quai/v1.10.10-unstable-b1b52e79-20220226/linux-amd64/go1.17.7
 		// https://quai.network
 		"Quai",
+
+		// REOSC/v2.2.4-unstable-6bcba06-20190321/x86_64-linux-gnu/rustc1.37.0
+		// https://www.reosc.io
+		"REOSC",
 
 		// ronin/v2.3.0-stable-f07cd8d1/linux-amd64/go1.15.5
 		// https://wallet.roninchain.com
