@@ -2,6 +2,7 @@ package observer
 
 import (
 	"context"
+	"errors"
 	"github.com/ledgerwatch/erigon/cmd/utils"
 	"github.com/ledgerwatch/erigon/internal/debug"
 	"github.com/spf13/cobra"
@@ -144,7 +145,11 @@ func (command *Command) ExecuteContext(ctx context.Context, runFunc func(ctx con
 	}
 	command.command.RunE = func(cmd *cobra.Command, args []string) error {
 		defer debug.Exit()
-		return runFunc(cmd.Context(), command.flags)
+		err := runFunc(cmd.Context(), command.flags)
+		if errors.Is(err, context.Canceled) {
+			return nil
+		}
+		return err
 	}
 	return command.command.ExecuteContext(ctx)
 }

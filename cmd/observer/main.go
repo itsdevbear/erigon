@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon/cmd/observer/database"
@@ -78,7 +79,8 @@ func main() {
 	reportCommand.OnRun(reportWithFlags)
 	command.AddSubCommand(reportCommand.RawCommand())
 
-	if err := command.ExecuteContext(ctx, mainWithFlags); err != nil {
+	err := command.ExecuteContext(ctx, mainWithFlags)
+	if (err != nil) && !errors.Is(err, context.Canceled) {
 		utils.Fatalf("%v", err)
 	}
 }
