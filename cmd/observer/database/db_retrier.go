@@ -17,8 +17,6 @@ func NewDBRetrier(db DB, logger log.Logger) DBRetrier {
 	return DBRetrier{db, logger}
 }
 
-const retryCount = 32
-
 func retryBackoffTime(attempt int) time.Duration {
 	if attempt <= 0 { return 0 }
 	jitter := rand.Int63n(20 * time.Millisecond.Nanoseconds() * int64(attempt))
@@ -31,94 +29,55 @@ func retryBackoffTime(attempt int) time.Duration {
 	return time.Duration(ns)
 }
 
+func (db DBRetrier) retry(ctx context.Context, opName string, op func(context.Context) (interface{}, error)) (interface{}, error) {
+	const retryCount = 32
+	return utils.Retry(ctx, retryCount, retryBackoffTime, db.db.IsConflictError, db.log, opName, op)
+}
+
 func (db DBRetrier) UpsertNodeAddr(ctx context.Context, id NodeID, addr NodeAddr) error {
-	var err error
-	for i := 0; i <= retryCount; i += 1 {
-		if i > 0 {
-			db.log.Trace("retrying UpsertNode", "attempt", i, "err", err)
-		}
-		utils.Sleep(ctx, retryBackoffTime(i))
-		err = db.db.UpsertNodeAddr(ctx, id, addr)
-		if (err == nil) || !db.db.IsConflictError(err) {
-			break
-		}
-	}
+	_, err := db.retry(ctx, "UpsertNodeAddr", func(ctx context.Context) (interface{}, error) {
+		return nil, db.db.UpsertNodeAddr(ctx, id, addr)
+	})
 	return err
 }
 
 func (db DBRetrier) UpdateClientID(ctx context.Context, id NodeID, clientID string) error {
-	var err error
-	for i := 0; i <= retryCount; i += 1 {
-		if i > 0 {
-			db.log.Trace("retrying UpdateClientID", "attempt", i, "err", err)
-		}
-		utils.Sleep(ctx, retryBackoffTime(i))
-		err = db.db.UpdateClientID(ctx, id, clientID)
-		if (err == nil) || !db.db.IsConflictError(err) {
-			break
-		}
-	}
+	_, err := db.retry(ctx, "UpdateClientID", func(ctx context.Context) (interface{}, error) {
+		return nil, db.db.UpdateClientID(ctx, id, clientID)
+	})
 	return err
 }
 
 func (db DBRetrier) UpdateHandshakeError(ctx context.Context, id NodeID, handshakeErr string) error {
-	var err error
-	for i := 0; i <= retryCount; i += 1 {
-		if i > 0 {
-			db.log.Trace("retrying UpdateHandshakeError", "attempt", i, "err", err)
-		}
-		utils.Sleep(ctx, retryBackoffTime(i))
-		err = db.db.UpdateHandshakeError(ctx, id, handshakeErr)
-		if (err == nil) || !db.db.IsConflictError(err) {
-			break
-		}
-	}
+	_, err := db.retry(ctx, "UpdateHandshakeError", func(ctx context.Context) (interface{}, error) {
+		return nil, db.db.UpdateHandshakeError(ctx, id, handshakeErr)
+	})
 	return err
 }
 
 func (db DBRetrier) UpdateForkCompatibility(ctx context.Context, id NodeID, isCompatFork bool) error {
-	var err error
-	for i := 0; i <= retryCount; i += 1 {
-		if i > 0 {
-			db.log.Trace("retrying UpdateForkCompatibility", "attempt", i, "err", err)
-		}
-		utils.Sleep(ctx, retryBackoffTime(i))
-		err = db.db.UpdateForkCompatibility(ctx, id, isCompatFork)
-		if (err == nil) || !db.db.IsConflictError(err) {
-			break
-		}
-	}
+	_, err := db.retry(ctx, "UpdateForkCompatibility", func(ctx context.Context) (interface{}, error) {
+		return nil, db.db.UpdateForkCompatibility(ctx, id, isCompatFork)
+	})
 	return err
 }
 
 func (db DBRetrier) UpdateNeighborBucketKeys(ctx context.Context, id NodeID, keys []string) error {
-	var err error
-	for i := 0; i <= retryCount; i += 1 {
-		if i > 0 {
-			db.log.Trace("retrying UpdateNeighborBucketKeys", "attempt", i, "err", err)
-		}
-		utils.Sleep(ctx, retryBackoffTime(i))
-		err = db.db.UpdateNeighborBucketKeys(ctx, id, keys)
-		if (err == nil) || !db.db.IsConflictError(err) {
-			break
-		}
-	}
+	_, err := db.retry(ctx, "UpdateNeighborBucketKeys", func(ctx context.Context) (interface{}, error) {
+		return nil, db.db.UpdateNeighborBucketKeys(ctx, id, keys)
+	})
 	return err
 }
 
 func (db DBRetrier) TakeCandidates(ctx context.Context, minUnusedDuration time.Duration, maxHandshakeTries uint, limit uint) ([]NodeID, error) {
-	var result []NodeID
-	var err error
-	for i := 0; i <= retryCount; i += 1 {
-		if i > 0 {
-			db.log.Trace("retrying TakeCandidates", "attempt", i, "err", err)
-		}
-		utils.Sleep(ctx, retryBackoffTime(i))
-		result, err = db.db.TakeCandidates(ctx, minUnusedDuration, maxHandshakeTries, limit)
-		if (err == nil) || !db.db.IsConflictError(err) {
-			break
-		}
+	resultAny, err := db.retry(ctx, "TakeCandidates", func(ctx context.Context) (interface{}, error) {
+		return db.db.TakeCandidates(ctx, minUnusedDuration, maxHandshakeTries, limit)
+	})
+
+	if resultAny == nil {
+		return nil, err
 	}
+	result := resultAny.([]NodeID)
 	return result, err
 }
 
