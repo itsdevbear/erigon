@@ -19,21 +19,25 @@ type ClientsReport struct {
 
 func CreateClientsReport(ctx context.Context, db database.DB) (*ClientsReport, error) {
 	groups := make(map[string]uint)
+	knownCount := uint(0)
 	unknownCount := uint(0)
 	enumFunc := func(clientID *string) {
 		if clientID != nil {
+			knownCount++
 			if observer.IsClientIDBlacklisted(*clientID) {
 				return
 			}
 			clientName := observer.NameFromClientID(*clientID)
-			groups[clientName] += 1
+			groups[clientName]++
 		} else {
-			unknownCount += 1
+			unknownCount++
 		}
 	}
 	if err := db.EnumerateClientIDs(ctx, enumFunc); err != nil {
 		return nil, err
 	}
+
+	totalCount := sumMapValues(groups)
 
 	report := ClientsReport{}
 
@@ -52,6 +56,8 @@ func CreateClientsReport(ctx context.Context, db database.DB) (*ClientsReport, e
 
 	report.Clients = append(report.Clients,
 		ClientsReportEntry{"...", othersCount},
+		ClientsReportEntry{"total", totalCount},
+		ClientsReportEntry{"known", knownCount},
 		ClientsReportEntry{"unknown", unknownCount})
 
 	return &report, nil
@@ -62,7 +68,7 @@ func (report *ClientsReport) String() string {
 	builder.WriteString("clients:")
 	builder.WriteRune('\n')
 	for _, client := range report.Clients {
-		builder.WriteString(fmt.Sprintf("%5d %s", client.Count, client.Name))
+		builder.WriteString(fmt.Sprintf("%6d %s", client.Count, client.Name))
 		builder.WriteRune('\n')
 	}
 	return builder.String()
